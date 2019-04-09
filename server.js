@@ -312,15 +312,19 @@ io.on('connection', function (socket) {
         });
     });
 
-    socket.on("GetScenario", function (prop) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
+    socket.on("GetScenario", function (data) {
         console.log("On GetScenario");
         var selectParam;
+        if(!isnull(data)) 
+            selectParam =  [data.applid];
 
         var selectQuery = ' SELECT scenarioid, name_en "name", note, active, dispseq ';
-        selectQuery += ' FROM cockpit.scenario '
+        selectQuery += ' FROM cockpit.scenario ';
+        if(!isnull(selectParam))
+            selectQuery += 'WHERE applid = $1 '
         selectQuery += ' ORDER BY dispseq ';
 
-        client.query(selectQuery, (err, res) => {
+        client.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultGetScenario", res);    //받은 오브젝트 정보를 던짐
 

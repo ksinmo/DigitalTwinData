@@ -1,6 +1,6 @@
 const util = require('util')
-//var socket = require('socket.io-client')('http://localhost:8071');
-var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
+var socket = require('socket.io-client')('http://localhost:8071');
+//var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
 //var socket = require('socket.io-client')('ws://127.0.0.1:999/socket.io/?EIO=4&transport=websocket');
 const redis = require('redis');
 var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
@@ -21,19 +21,19 @@ function timeout() {
         timeout();
     }, 10);
 }
-timeout();
-console.log('IOT Finished!!');
+//timeout();
+//console.log('IOT Finished!!');
 
 socket.on('connect', function(){
-    //socket.emit('GetOrg');
-    //socket.emit('GetStatus', {usrid:'kde'});
+    //socket.emit('GetScenario');
+    socket.emit('GetScenario', {applid:'FAB0'});
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 //socket.emit('GetEqpPlan');
 //socket.emit('test');
-socket.on("ResultGetStatus", function (data) {
-    //console.log(util.inspect(data, {showHidden: false, depth: null}));
+socket.on("ResultGetScenario", function (data) {
+    console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 
 

@@ -5,6 +5,7 @@ var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
 const redis = require('redis');
 var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 const OBJECT_STATUS_CHANNEL = "ObjectStatus";
+///TEST
 
 function timeout() {
     setTimeout(function () {

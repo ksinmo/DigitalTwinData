@@ -545,7 +545,58 @@ io.on('connection', function (socket) {
         last_status_fetch_time = new Date();
     }
 
+    socket.on("GetResult", function (data) {
+        console.log("GetGetResult");
+        if(isnull(data)) return;
+        var selectParam =  [data.usrid, data.scenarioid];
+        var selectQuery =
+            'SELECT resultid, usrid, scenarioid, resultname, updateat '
+            + 'FROM cockpit.result '
+            + 'WHERE usrid = $1 '
+            + '  AND scenarioid = $2 '
+            + 'ORDER BY updateat ';
 
+        client.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            console.log("send ResultGetResult : " + util.inspect(res, {showHidden: false, depth: null}));
+            socket.emit("ResultGetResult", res); 
+        });
+    });
+
+    socket.on("GetResultDetail", function (data) {
+        console.log("GetResultDetail");
+        if(isnull(data)) return;
+        var selectParam =  [data.resultid];
+        var selectQuery =
+            'SELECT resultid, wipjson, performancejson, alertjson '
+            + 'FROM cockpit.result '
+            + 'WHERE resultid = $1 ';
+
+        client.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            res.rows[0].wipjson = JSON.parse(res.rows[0].wipjson);
+            res.rows[0].performancejson = JSON.parse(res.rows[0].performancejson);
+            res.rows[0].alertjson = JSON.parse(res.rows[0].alertjson);
+            console.log("send ResultGetResultDetail : " + util.inspect(res, {showHidden: false, depth: null}));
+            socket.emit("ResultGetResultDetail", res); 
+        });
+    });
+
+    socket.on("InsertResult", function (data) {
+        console.log("InsertResult");
+        if(isnull(data)) return;
+        var insertParam =  [data.usrid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
+            JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson)];
+        var insertQuery =
+            'INSERT INTO cockpit.result( '
+            + 'usrid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson) '
+            + 'VALUES ($1, $2, $3, $4, $5, $6, $7 ) ';
+
+        client.query(insertQuery, insertParam, (err, res) => {
+            if (errlog(err)) 
+                console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
+        });
+    });
 
     //yyyy-MM-dd hh:mm:ss
     function getUTCFormat(timestamp) {

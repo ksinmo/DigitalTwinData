@@ -26,13 +26,14 @@ function timeout() {
 
 socket.on('connect', function(){
     //socket.emit('GetScenario');
-    socket.emit('GetScenario', {applid:'FAB0'});
+    //socket.emit('GetResultDetail', {resultid: '1'});
+    socket.emit('InsertResult', {usrid: 'ksm', scenarioid: 'S01', resultname: 'RESULT #3', wipjson: {}, performancejson: {}, alertjson: {}});;
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 //socket.emit('GetEqpPlan');
 //socket.emit('test');
-socket.on("ResultGetScenario", function (data) {
+socket.on("ResultGetResultDetail", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

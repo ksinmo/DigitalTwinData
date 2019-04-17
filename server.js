@@ -1,8 +1,8 @@
-﻿const util = require('util');
+﻿var io = require('socket.io')(8071);
+const { Client } = require('pg');
+const util = require('util');
 const redis = require('redis');
 const promise = require('promise');
-const { Client } = require('pg');
-var io = require('socket.io')(8071)
 var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 const OBJECT_STATUS_CHANNEL = "ObjectStatus";
 
@@ -10,15 +10,17 @@ console.log('0. created')
 io.on('connection', function (socket) {
     console.log('1. connected')
     
-    const client = new Client({
+    const pgpool = new Client({
         host: 'mdmcloud.tobeway.com',
         port: 5432,
         user: 'dtusr',
         password: 'dtusr',
         database: 'dt'
+        //max: 10,
+        //idleTimeoutMillis: 300000
     });
 
-    client.connect((err) => {
+    pgpool.connect((err) => {
         if (err) {
             console.error('connection error', err.stack);
         } else {
@@ -48,7 +50,7 @@ io.on('connection', function (socket) {
 
         var LoginSelectParam = [data.ID, data.Password];
         
-        client.query(LoginSelect, LoginSelectParam, (err, res) => {
+        pgpool.query(LoginSelect, LoginSelectParam, (err, res) => {
             if (err) throw err
             socket.emit("LoginResult", res);
         });
@@ -62,7 +64,7 @@ io.on('connection', function (socket) {
             ' SELECT UsrID FROM cockpit.Usr where UsrID = $1';
         var AccountSelectParam = [data.ID];
 
-        client.query(AccountSelect, AccountSelectParam, (err, res) => {
+        pgpool.query(AccountSelect, AccountSelectParam, (err, res) => {
             if (err) throw err
             socket.emit("AccountCheckResult", res);
         });
@@ -78,7 +80,7 @@ io.on('connection', function (socket) {
 
         var AccountInsertParam = [data.ID, data.UserName_En, data.UserName_Ko, data.Password];
 
-        client.query(AccountInsert, AccountInsertParam, (err, res) => {
+        pgpool.query(AccountInsert, AccountInsertParam, (err, res) => {
             if (err) throw err
             socket.emit("AccountResult", res);
         });
@@ -91,7 +93,7 @@ io.on('connection', function (socket) {
             'SELECT UsrID FROM cockpit.Usr where UsrID = $1 AND Name_EN = $2 ';
         var FindPWSelectParam = [data.ID, data.UserName_En];
 
-        client.query(FindPWSelect, FindPWSelectParam, (err, res) => {
+        pgpool.query(FindPWSelect, FindPWSelectParam, (err, res) => {
             if (err) throw err
             socket.emit("FindPWResult", res);
         });
@@ -107,17 +109,19 @@ io.on('connection', function (socket) {
             ' WHERE UsrID = $2 ';
         var newPwUpdateParam = [data.Password, data.ID];
 
-        client.query(newPwUpdate, newPwUpdateParam, (err, res) => {
+        pgpool.query(newPwUpdate, newPwUpdateParam, (err, res) => {
             if (err) throw err          
             socket.emit("SetNewPWResult", res);          
         });
 
     });
 
-    //------------------------------모델링------------------------------------
+    //------------------------------모델링------------------------------------    
 
-    socket.on("ObjectAllSelect", function (data) {
-        console.log("ObjectAllSelect");
+    socket.on("GetObject", function (prop) {
+        console.log("GetObject");
+        var selectParam;
+        if(!isnull(prop))  selectParam = [prop.applid];
 
         var selectQuery =
             'SELECT O.objid, O.classid, objname_en objname, C.classname_en classname,'
@@ -129,65 +133,26 @@ io.on('connection', function (socket) {
             + ' FROM cockpit.object O '
             + ' LEFT OUTER JOIN cockpit.class C ON O.classid = C.classid '
             + ' LEFT OUTER JOIN cockpit.org ON O.orgid = ORG.orgid '
-            + ' ORDER BY O.dispseq;';
-
-        var selectQuery2 =
-            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval '
-            + 'FROM cockpit.objpropval O '
-            + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
-            + 'WHERE objid = $1 '
-            + 'ORDER BY P.dispseq ';
-
-        client.query(selectQuery, (err, res) => {
-            if (errlog(err)) return;
-
-            res.rows.forEach(function(row, idx, array) {
-                var selectParam = [row.objid];
-                client.query(selectQuery2, selectParam, (err, res2) => {
-                    if (errlog(err)) return;
-
-                    row.prop = res2.rows;
-                    if(idx == array.length - 1) { //last row select completed
-                        //console.log("send AllSelectResult : " + util.inspect(res, {showHidden: false, depth: null}));
-                        socket.emit("AllSelectResult", res);   //받은 오브젝트 정보를 던짐
-                    }
-                });                
-            });
-        });
-    });
-
-    socket.on("GetObject", function (prop) {
-        console.log("GetObject");
-        var selectParam;
-        if(!isnull(prop)) selectParam = [prop.objid];
-
-        var selectQuery =
-            'SELECT O.objid, O.classid, objname_en objname, C.classname_en classname,'
-            + ' positionx, positiony, positionz, '
-            + ' rotationx, rotationy, rotationz, '
-            + ' scalex, scaley, scalez, '
-            + ' speed , O.description, C.classtype, '
-            + ' ORG.orgid, ORG.orgname_en orgname '
-            + ' FROM cockpit.object O '
-            + ' LEFT OUTER JOIN cockpit.class C ON O.classid = C.classid '
-            + ' LEFT OUTER JOIN cockpit.org ON O.orgid = ORG.orgid ';
-            if(!isnull(selectParam))
-                selectQuery += ' WHERE objid = $1 ';
+            + ' WHERE applid = $1 ';
+            if(!isnull(prop) && !isnull(prop.objid)) {
+                selectParam.push(prop.objid);
+                selectQuery += ' AND objid = $2 ';
+            }
             selectQuery += ' ORDER BY O.dispseq;';
 
         var selectQuery2 =
-            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval '
+            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, P.ismonitor '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE objid = $1 '
             + 'ORDER BY P.dispseq ';
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
 
             res.rows.forEach(function(row, idx, array) {
                 var selectParam2 = [row.objid];
-                client.query(selectQuery2, selectParam2, (err, res2) => {
+                pgpool.query(selectQuery2, selectParam2, (err, res2) => {
                     if (errlog(err)) return;
 
                     row.prop = res2.rows;
@@ -215,38 +180,34 @@ io.on('connection', function (socket) {
             'INSERT INTO cockpit.object(  objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
             //+ ' CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, Description)'
-            + 'description, active) '
+            + 'description, active, applid) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15 )';
 
-        var objectDeleteQuery = 'DELETE FROM cockpit.object ';//다 지우고
-        var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//다 지우고
-        client.query(objectDeleteQuery, (err, res) => {
+        var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1';//다 지우고
+        //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
+        pgpool.query(objectDeleteQuery, [data.rows[0]["applid"]], (err, res) => {
             if (errlog(err)) return;
 
-            client.query(objPropValdeleteQuery, (err, res) => {
-                if (errlog(err)) return;
+            data.rows.forEach(function(row) {
+                //console.log(util.inspect(row["prop"], {showHidden: false, depth: null}));  
+                var insertParam =
+                    [
+                        row["objid"], row["classid"], row["objname"],
+                        row["positionx"], row["positiony"], row["positionz"],
+                        row["rotationx"], row["rotationy"], row["rotationz"],
+                        row["scalex"], row["scaley"], row["scalez"], row["speed"],
+                        //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
+                        row["description"], row["applid"]
+                    ];
+                
+                pgpool.query(insertQuery, insertParam, (err, res) => {
+                    if (errlog(err)) return;
 
-                data.rows.forEach(function(row) {
-                    //console.log(util.inspect(row["prop"], {showHidden: false, depth: null}));  
-                    var insertParam =
-                        [
-                            row["objid"], row["classid"], row["objname"],
-                            row["positionx"], row["positiony"], row["positionz"],
-                            row["rotationx"], row["rotationy"], row["rotationz"],
-                            row["scalex"], row["scaley"], row["scalez"], row["speed"],
-                            //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
-                            row["description"], 'Y'
-                        ];
-                    
-                    client.query(insertQuery, insertParam, (err, res) => {
-                        if (errlog(err)) return;
-
-                        console.log("insert success");
-                        objPropValInsert(row["objid"], row["classid"], row["prop"]);
-                    });
-                });    
-            });       
+                    console.log("insert success");
+                    objPropValInsert(row["objid"], row["classid"], row["prop"]);
+                });
+            });    
         });
 
     });
@@ -260,7 +221,7 @@ io.on('connection', function (socket) {
                 //console.log(util.inspect(row, {showHidden: false, depth: null}));  
                 var insertParam = [row["objid"], row["classid"], row["propid"], row["propval"]];
                 propids.push(row["propid"]);
-                client.query(insertQuery, insertParam, (err, res) => {
+                pgpool.query(insertQuery, insertParam, (err, res) => {
                     if (errlog(err)) return;
                 });
             });
@@ -280,12 +241,12 @@ io.on('connection', function (socket) {
             + 'where classid in (SELECT classid FROM CTE) '
             + 'ORDER BY CP.dispseq '
         var selectParam = [classid];        
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             res.rows.forEach(function(row, idx, array) {
                 if(!propids.includes(row["propid"])) {
                     var insertParam = [objid, row["classid"], row["propid"], null];
-                    client.query(insertQuery, insertParam, (err, res) => {
+                    pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                     });
                 }
@@ -305,7 +266,7 @@ io.on('connection', function (socket) {
             selectQuery += ' WHERE scenarioid = $1 ';
         selectQuery += ' ORDER BY ordertime, orderid ';
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultOrderData", res);    //받은 오브젝트 정보를 던짐
 
@@ -324,7 +285,7 @@ io.on('connection', function (socket) {
             selectQuery += 'WHERE applid = $1 '
         selectQuery += ' ORDER BY dispseq ';
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultGetScenario", res);    //받은 오브젝트 정보를 던짐
 
@@ -356,7 +317,7 @@ io.on('connection', function (socket) {
             selectParam = [data.parentclassid];
         }
             
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
 
             socket.emit("ResultClass", res);    //받은 오브젝트 정보를 던짐
@@ -379,7 +340,7 @@ io.on('connection', function (socket) {
             + 'AND O.active = \'Y\' '
             + 'ORDER BY dispseq ';
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultGetOrg", res); 
 
@@ -401,7 +362,7 @@ io.on('connection', function (socket) {
             + 'AND A.active = \'Y\' '
             + 'ORDER BY dispseq '
         
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultGetAppl", res); 
 
@@ -423,7 +384,7 @@ io.on('connection', function (socket) {
             + '  AND M.active = \'Y\''
             + 'ORDER BY dispseq '
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultGetMenu", res); 
 
@@ -442,7 +403,7 @@ io.on('connection', function (socket) {
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE P.ismonitor = \'Y\' ';
 
-        client.query(selectQuery, (err, res) => {
+        pgpool.query(selectQuery, (err, res) => {
             if (errlog(err)) return;
             console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetAllStatus", res); 
@@ -464,7 +425,7 @@ io.on('connection', function (socket) {
 
         selectQuery += 'ORDER BY P.dispseq ';
 
-        client.query(selectQuery, (err, res) => {
+        pgpool.query(selectQuery, (err, res) => {
             if (errlog(err)) return;
             console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetStatus", res); 
@@ -483,7 +444,7 @@ io.on('connection', function (socket) {
             updateQuery += ' AND O.changed = \'Y\'';
         last_status_fetch_time = new Date();
 
-        client.query(updateQuery, (err, res) => {
+        pgpool.query(updateQuery, (err, res) => {
             if (errlog(err)) return;
             console.log('update ok');
         });
@@ -556,7 +517,7 @@ io.on('connection', function (socket) {
             + '  AND scenarioid = $2 '
             + 'ORDER BY updateat ';
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             console.log("send ResultGetResult : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetResult", res); 
@@ -568,15 +529,16 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam =  [data.resultid];
         var selectQuery =
-            'SELECT resultid, wipjson, performancejson, alertjson '
+            'SELECT resultid, wipjson, performancejson, alertjson, alertdetailjson '
             + 'FROM cockpit.result '
             + 'WHERE resultid = $1 ';
 
-        client.query(selectQuery, selectParam, (err, res) => {
+        pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             res.rows[0].wipjson = JSON.parse(res.rows[0].wipjson);
             res.rows[0].performancejson = JSON.parse(res.rows[0].performancejson);
             res.rows[0].alertjson = JSON.parse(res.rows[0].alertjson);
+            res.rows[0].alertdetailjson = JSON.parse(res.rows[0].alertdetailjson);
             console.log("send ResultGetResultDetail : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetResultDetail", res); 
         });
@@ -589,10 +551,10 @@ io.on('connection', function (socket) {
             JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson)];
         var insertQuery =
             'INSERT INTO cockpit.result( '
-            + 'usrid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson) '
-            + 'VALUES ($1, $2, $3, $4, $5, $6, $7 ) ';
+            + 'usrid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
+            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ) ';
 
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if (errlog(err)) 
                 console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
         });
@@ -637,7 +599,7 @@ io.on('connection', function (socket) {
         var selectQuery = ' select scenario_id, eqp_id, lot_id, product_id, process_id, step_id, lot_qty, dispatch_in_time, start_time, end_time, tool_id from cockpit.eqpplan order by dispatch_in_time' ;
         var insertQuery = 'INSERT INTO cockpit.order ( scenarioid, orderid, ordertype, ordertime, beforeorderid, objid, targetobjid1, targetobjid2, parameter)  VALUES (\'S02\', $1, $2, $3, $4, $5, $6, $7, $8);';    
 
-        client.query(selectQuery, '', (err, res) => {
+        pgpool.query(selectQuery, '', (err, res) => {
             if (errlog(err)) return;
 
             var orderId = 1;
@@ -658,7 +620,7 @@ io.on('connection', function (socket) {
                 //WIP은 시작 시점에 모두 생성함 -> 완료되는 것만 생성함.
                 if(row.step_id == LAST_STEP) {
                     var insertParam = [ orderId, 'CREA', total_start_time, null, row.lot_id, FIRST_EQP, null, null];
-                    client.query(insertQuery, insertParam, (err, res) => {
+                    pgpool.query(insertQuery, insertParam, (err, res) => {
                         if(err) throw err
                         console.log('INSERT OK');
                     });
@@ -683,7 +645,7 @@ io.on('connection', function (socket) {
                     if( row.start_time > total_start_time)
                         tran_time.setTime ( start_time.getTime() - 10*60*1000 );
                     var insertParam = [ orderId, 'TRAN', tran_time, null, FIRST_EQP, row.lot_id, eqpid, null];
-                    client.query(insertQuery, insertParam, (err, res) => {
+                    pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                         console.log('INSERT OK');
                     });
@@ -692,7 +654,7 @@ io.on('connection', function (socket) {
 
                 if(row.start_time != null) {                    
                     var insertParam = [ orderId, 'PROC', row.start_time, null, eqpid, row.lot_id, null, null];
-                    client.query(insertQuery, insertParam, (err, res) => {
+                    pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                         console.log('INSERT OK');
                     });
@@ -701,7 +663,7 @@ io.on('connection', function (socket) {
                 
                 if(row.end_time != null) {
                     var insertParam = [ orderId, 'ENDT', row.end_time, null, eqpid, row.lot_id, null, null];
-                    client.query(insertQuery, insertParam, (err, res) => {
+                    pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                         console.log('INSERT OK');
                     });
@@ -712,7 +674,7 @@ io.on('connection', function (socket) {
                     else  next_eqp_id = findNextEqp(lots, row.lot_id, row.dispatch_in_time);
                     console.log('TRAN next_eqp_id = ' + next_eqp_id);
                     var insertParam = [ orderId, 'TRAN', row.end_time, null, eqpid, row.lot_id, next_eqp_id,  row.transfer_time];
-                    client.query(insertQuery, insertParam, (err, res) => {
+                    pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                         console.log('INSERT OK');
                     });
@@ -728,32 +690,32 @@ io.on('connection', function (socket) {
         var start_time_16 = new Date(start_time.getTime() + 16*60*60*1000);
         var start_time_24 = new Date(start_time.getTime() + 24*60*60*1000);
         var insertParam = [ 1, 'SHFT', start_time, null, null, null, null, 'SHIFT #1'];
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if(err) throw err
             console.log('SHIFT INSERT OK');
         });        
         var insertParam = [ 2, 'SHFE', start_time_8, null, null, null, null, 'SHIFT #1'];
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if(err) throw err
             console.log('SHIFT INSERT OK');
         });
         var insertParam = [ 3, 'SHFT', start_time_8, null, null, null, null, 'SHIFT #2'];
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if(err) throw err
             console.log('SHIFT INSERT OK');
         });        
         var insertParam = [ 4, 'SHFE', start_time_16, null, null, null, null, 'SHIFT #2'];
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if(err) throw err
             console.log('SHIFT INSERT OK');
         });        
         var insertParam = [ 5, 'SHFT', start_time_16, null, null, null, null, 'SHIFT #3'];
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if(err) throw err
             console.log('SHIFT INSERT OK');
         });        
         var insertParam = [ 6, 'SHFE', start_time_24, null, null, null, null, 'SHIFT #3'];
-        client.query(insertQuery, insertParam, (err, res) => {
+        pgpool.query(insertQuery, insertParam, (err, res) => {
             if(err) throw err
             console.log('SHIFT INSERT OK');
         });      

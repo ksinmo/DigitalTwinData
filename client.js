@@ -5,8 +5,8 @@ var socket = require('socket.io-client')('http://localhost:8071');
 const redis = require('redis');
 var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 const OBJECT_STATUS_CHANNEL = "ObjectStatus";
-///TEST
 
+///Generate IoT Sensor
 function timeout() {
     setTimeout(function () {
         var message = 'EQP0' + Math.floor((Math.random() * 9) + 1);
@@ -25,15 +25,15 @@ function timeout() {
 //console.log('IOT Finished!!');
 
 socket.on('connect', function(){
-    //socket.emit('GetScenario');
+    //socket.emit('GetObject');
     //socket.emit('GetResultDetail', {resultid: '1'});
-    socket.emit('InsertResult', {usrid: 'ksm', scenarioid: 'S01', resultname: 'RESULT #3', wipjson: {}, performancejson: {}, alertjson: {}});;
+    socket.emit('GetObject', {applid:'FAB0', objid:'EQP03'});;
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 //socket.emit('GetEqpPlan');
 //socket.emit('test');
-socket.on("ResultGetResultDetail", function (data) {
+socket.on("ResultGetObject", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

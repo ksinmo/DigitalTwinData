@@ -509,12 +509,12 @@ io.on('connection', function (socket) {
     socket.on("GetResult", function (data) {
         console.log("GetResult");
         if(isnull(data)) return;
-        var selectParam =  [data.usrid, data.scenarioid];
+        var selectParam =  [data.usrid, data.applid];
         var selectQuery =
-            'SELECT resultid, usrid, scenarioid, resultname, updateat '
+            'SELECT resultid, usrid, applid, scenarioid, resultname, updateat '
             + 'FROM cockpit.result '
             + 'WHERE usrid = $1 '
-            + '  AND scenarioid = $2 '
+            + '  AND applid = $2 '
             + 'ORDER BY updateat ';
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
@@ -551,8 +551,8 @@ io.on('connection', function (socket) {
             JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
         var insertQuery =
             'INSERT INTO cockpit.result( '
-            + 'usrid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
-            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8 ) ';
+            + 'usrid, applid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
+            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9 ) ';
 
         pgpool.query(insertQuery, insertParam, (err, res) => {
             if (errlog(err)) 

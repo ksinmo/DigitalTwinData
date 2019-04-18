@@ -27,13 +27,13 @@ function timeout() {
 socket.on('connect', function(){
     //socket.emit('GetObject');
     //socket.emit('GetResultDetail', {resultid: '1'});
-    socket.emit('GetObject', {applid:'FAB0', objid:'EQP03'});;
+    socket.emit('GetObject', {applid:'FAB0'});
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 //socket.emit('GetEqpPlan');
 //socket.emit('test');
-socket.on("ResultGetObject", function (data) {
+socket.on("ResultGetAllObject", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

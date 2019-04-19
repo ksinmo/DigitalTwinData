@@ -548,7 +548,7 @@ io.on('connection', function (socket) {
     socket.on("InsertResult", function (data) {
         console.log("InsertResult");
         if(isnull(data)) return;
-        var insertParam =  [data.usrid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
+        var insertParam =  [data.usrid, data.applid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
             JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
         var insertQuery =
             'INSERT INTO cockpit.result( '

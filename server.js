@@ -561,6 +561,34 @@ io.on('connection', function (socket) {
         });
     });
 
+    socket.on("DeleteResult", function (data) {
+        console.log("DeleteResult");
+        if(isnull(data)) return;
+        var deleteParam = [data.applid];
+        var deleteQuery = 'DELETE FROM cockpit.result WHERE resultid = $1 ' 
+        pgpool.query(deleteQuery, deleteParam, (err, res) => {
+            if (errlog(err)) return;
+        });
+});
+    socket.on("GetAlert", function (data) {     
+        console.log("On GetAppl");
+        if(isnull(data)) return;
+        var selectParam = [data.applid];
+
+        var selectQuery = 'SELECT AA.applid, AA.alertid, A.alertname_en alertname '
+            + 'FROM cockpit.applalert AA '
+            + 'INNER JOIN cockpit.alert A ON AA.alertid = A.alertid '
+            + 'WHERE AA.applid = $1 '
+            + '  AND AA.active = \'Y\' '
+            + 'ORDER BY A.dispseq '
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetAlert", res); 
+
+        });
+    });
+
     //yyyy-MM-dd hh:mm:ss
     function getUTCFormat(timestamp) {
         var dateFormat = timestamp.getUTCFullYear() + '-' + String(timestamp.getUTCMonth() + 1).padStart(2, '0') + '-' + String(timestamp.getUTCDate()).padStart(2, '0');

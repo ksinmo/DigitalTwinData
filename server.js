@@ -564,12 +564,12 @@ io.on('connection', function (socket) {
     socket.on("DeleteResult", function (data) {
         console.log("DeleteResult");
         if(isnull(data)) return;
-        var deleteParam = [data.applid];
+        var deleteParam = [data.resultid];
         var deleteQuery = 'DELETE FROM cockpit.result WHERE resultid = $1 ' 
         pgpool.query(deleteQuery, deleteParam, (err, res) => {
             if (errlog(err)) return;
         });
-});
+    });
     socket.on("GetAlert", function (data) {     
         console.log("On GetAppl");
         if(isnull(data)) return;

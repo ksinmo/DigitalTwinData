@@ -1,4 +1,5 @@
-﻿var io = require('socket.io')(8071);
+﻿
+var io = require('socket.io')(8071);
 const { Client } = require('pg');
 const util = require('util');
 const redis = require('redis');
@@ -579,7 +580,7 @@ io.on('connection', function (socket) {
             + 'FROM cockpit.applalert AA '
             + 'INNER JOIN cockpit.alert A ON AA.alertid = A.alertid '
             + 'WHERE AA.applid = $1 '
-            + '  AND AA.active = \'Y\' '
+            + '  AND A.active = \'Y\' '
             + 'ORDER BY A.dispseq '
         
         pgpool.query(selectQuery, selectParam, (err, res) => {

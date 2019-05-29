@@ -9,31 +9,34 @@ const OBJECT_STATUS_CHANNEL = "ObjectStatus";
 ///Generate IoT Sensor
 function timeout() {
     setTimeout(function () {
-        var message = 'EQP0' + Math.floor((Math.random() * 9) + 1);
-        message += ':OPERATING:';
-        message += (Math.floor(Math.random() * 2) == 0) ? 'Y' : 'N';
+        var eqp = 'EQP0' + Math.floor((Math.random() * 9) + 1);
+        var processingWIP = Math.floor((Math.random() * 3));
+        var message = eqp + ':OPERATING:';
+        message += (processingWIP > 0) ? 'Y' : 'N';
         console.log(message);
         redisClient.publish(OBJECT_STATUS_CHANNEL, message);
-        message = 'EQP0' + Math.floor((Math.random() * 9) + 1);
-        message += ':DQWIP:' + Math.floor((Math.random() * 10) + 1);
+        message = eqp + ':PROCESSINGWIP:' + processingWIP;
+        console.log(message);
+        redisClient.publish(OBJECT_STATUS_CHANNEL, message);
+        message = eqp + ':DQWIP:' + Math.floor((Math.random() * 10) );
         console.log(message);
         redisClient.publish(OBJECT_STATUS_CHANNEL, message);
         timeout();
-    }, 10);
+    }, 1000);
 }
-//timeout();
+timeout();
 //console.log('IOT Finished!!');
 
 socket.on('connect', function(){
-    //socket.emit('GetObject');
+    socket.emit('GetObject', {applid:'GSCP0'});
     //socket.emit('GetResultDetail', {resultid: '1'});
-    socket.emit('DeleteResult', {applid:'49'});
+    //socket.emit('DeleteResult', {applid:'49'});
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 //socket.emit('GetEqpPlan');
 //socket.emit('test');
-socket.on("ResultGetAlert", function (data) {
+socket.on("ResultGetAllObject", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

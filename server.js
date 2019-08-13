@@ -274,7 +274,7 @@ io.on('connection', function (socket) {
             if (errlog(err)) return;
             res.rows.forEach(function(row, idx, array) {
                 if(!propids.includes(row["propid"])) {
-                    var insertParam = [objid, row["classid"], row["propid"], null];
+                    var insertParam = [objid, row["classid"], row["propid"], row["defpropval"]];
                     pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                     });

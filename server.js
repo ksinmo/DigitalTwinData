@@ -6,6 +6,8 @@ const redis = require('redis');
 const promise = require('promise');
 var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 const OBJECT_STATUS_CHANNEL = "ObjectStatus";
+var timerId = 0;
+var redisPub;
 
 console.log('0. created')
 io.on('connection', function (socket) {
@@ -117,6 +119,31 @@ io.on('connection', function (socket) {
 
     });
 
+    //------------------------------Monitoring Test Data 생성 ----------------------------
+    socket.on("StartMonitoringData", function (data) {
+        redisPub = redis.createClient(6379, 'mdmcloud.tobeway.com');
+        // PUBLISH ObjectStatus EQP01:OPERATING:Y
+        
+        timerId = setInterval(function() {
+            var eqp = 'EQP0' + Math.floor((Math.random() * 9) + 1);
+            var processingWIP = Math.floor((Math.random() * 3));
+            var message = eqp + ':OPERATING:';
+            message += (processingWIP > 0) ? 'Y' : 'N';
+            //console.log(message);
+            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+            message = eqp + ':PROCESSINGWIP:' + processingWIP;
+            //console.log(message);
+            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+            message = eqp + ':DQWIP:' + Math.floor((Math.random() * 10) );
+            //console.log(message);
+            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+        }, data.interval)
+    });
+    socket.on("StopMonitoringData", function (data) {
+        clearInterval(timerId);
+        if(redisPub !== undefined && redisPub !== null ) redisPub.quit();
+    });
+    
     //------------------------------모델링------------------------------------    
 
     socket.on("GetObject", function (prop) {
@@ -455,7 +482,6 @@ io.on('connection', function (socket) {
     // pub/sub
     // PUBLISH ObjectStatus EQP01:OPERATING:Y
     redisClient.on("message", function(channel, message) {
-        console.log(channel + ',' + message);
         if(channel != OBJECT_STATUS_CHANNEL) return;
 
         var result = {command: 'SELECT', rowCount: 1, oid: null, rows: []};

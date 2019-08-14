@@ -4,6 +4,7 @@
   "description": "",
   "main": "server.js",
   "dependencies": {
+    "mssql": "^5.1.0",
     "pg": "^7.8.0",
     "promise": "^8.0.3",
     "redis": "^2.8.0",

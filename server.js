@@ -173,14 +173,15 @@ io.on('connection', function (socket) {
             'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, P.ismonitor '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
-            + 'WHERE objid = $1 '
+            + 'WHERE applid = $1  '
+            + 'AND objid = $2 '
             + 'ORDER BY P.dispseq ';
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
 
             res.rows.forEach(function(row, idx, array) {
-                var selectParam2 = [row.objid];
+                var selectParam2 = [prop.applid, row.objid];
                 pgpool.query(selectQuery2, selectParam2, (err, res2) => {
                     if (errlog(err)) return;
 
@@ -234,21 +235,21 @@ io.on('connection', function (socket) {
                     if (errlog(err)) return;
 
                     console.log("insert success");
-                    objPropValInsert(row["objid"], row["classid"], row["prop"]);
+                    objPropValInsert(row["applid"], row["objid"], row["classid"], row["prop"]);
                 });
             });    
         });
 
     });
 
-    function objPropValInsert(objid, classid, prop) {
-        var insertQuery = 'INSERT INTO cockpit.objpropval(objid, classid, propid, propval) VALUES ($1, $2, $3, $4);';
+    function objPropValInsert(applid, objid, classid, prop) {
+        var insertQuery = 'INSERT INTO cockpit.objpropval(applid, objid, classid, propid, propval) VALUES ($1, $2, $3, $4, $5);';
         var propids = [];
 
         if(!isnull(prop)) {
             prop.forEach(function(row) {
                 //console.log(util.inspect(row, {showHidden: false, depth: null}));  
-                var insertParam = [row["objid"], row["classid"], row["propid"], row["propval"]];
+                var insertParam = [applid, row["objid"], row["classid"], row["propid"], row["propval"]];
                 propids.push(row["propid"]);
                 pgpool.query(insertQuery, insertParam, (err, res) => {
                     if (errlog(err)) return;
@@ -274,7 +275,7 @@ io.on('connection', function (socket) {
             if (errlog(err)) return;
             res.rows.forEach(function(row, idx, array) {
                 if(!propids.includes(row["propid"])) {
-                    var insertParam = [objid, row["classid"], row["propid"], row["defpropval"]];
+                    var insertParam = [applid, objid, row["classid"], row["propid"], row["defpropval"]];
                     pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                     });
@@ -675,7 +676,7 @@ io.on('connection', function (socket) {
                 lots.push({lot_id: row.lot_id, eqp_id: eqpid, dispatch_in_time: row.dispatch_in_time, step_id: row.step_id});
                 //WIP은 시작 시점에 모두 생성함 -> 완료되는 것만 생성함.
                 if(row.step_id == LAST_STEP) {
-                    var insertParam = [ orderId, 'CREA', total_start_time, null, row.lot_id, FIRST_EQP, null, null];
+                    var insertParam = [ orderId, 'CREA', total_start_time, null, FIRST_EQP, row.lot_id, row.product_id, null];
                     pgpool.query(insertQuery, insertParam, (err, res) => {
                         if(err) throw err
                         console.log('INSERT OK');

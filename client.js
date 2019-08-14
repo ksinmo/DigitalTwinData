@@ -5,8 +5,8 @@ var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
 //const redis = require('redis');
 //var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 
-//var socketSaps = require('socket.io-client')('http://localhost:8072');
-var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
+var socketSaps = require('socket.io-client')('http://localhost:8072');
+//var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
 
 socket.on('connect', function(){
     socket.emit('GetResultDetail', {resultid: '1'});

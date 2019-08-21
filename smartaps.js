@@ -6,15 +6,15 @@ var config = {
     password: 'tbw!2020',
     server: 'portal.tobeway.com',
     port: 1812,
-    database: 'aps'
+    database: 'WS정밀'
 }
 
 console.log('0. created')
 io.on('connection', function (socket) {
     console.log('1. connected')
 
-    socket.on("GetOrder", function (prop) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
-        GetOrderFromEqpPlan().then(function(orders) {
+    socket.on("GetOrder", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
+        GetOrderFromEqpPlan(data.scenarioid).then(function(orders) {
             // orders.forEach(function(row, idx, array) {
             //     console.log(row)
             // });    
@@ -24,10 +24,10 @@ io.on('connection', function (socket) {
             orders.sort(function(a,b) {
                 return a.orderid < b.orderid ? -1: 1
             });
-            console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            orders.forEach(function(row, idx, array) {
-                console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2)
-            });
+            //console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            //orders.forEach(function(row, idx, array) {
+            //    console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2)
+            //});
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
         }).catch(function (err) {
@@ -36,7 +36,7 @@ io.on('connection', function (socket) {
     });
 
     //------------------------------Order Generation from VMS------------------------------------ 
-    function GetOrderFromEqpPlan() {
+    function GetOrderFromEqpPlan(scenarioid) {
         return new Promise(function(resolve, reject) {
         var FIRST_EQP = 'DBANK';
         var orders = [];
@@ -46,8 +46,10 @@ io.on('connection', function (socket) {
                 return; 
             }
             var request = new sql.Request();
-            var q = "SELECT eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state, tool_id ";
-            q += "FROM dbo.eqpplan WHERE version_no = 'TSK-20190801-144259' ";
+            var q = "SELECT ISNULL(DISPATCH_IN_TIME, START_TIME) AS ORDER_DATA, version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state ";
+            q += "FROM dbo.EQP_PLAN ";
+            q += "WHERE VERSION_NO = 'TSK-20190813-110513' ";
+            q += "ORDER BY ORDER_DATA ";
             request.query(q, function(err, recordset) {
                 if(err) { 
                     reject(err); 
@@ -86,6 +88,7 @@ io.on('connection', function (socket) {
                     //lot이 없으면 생성
                     if(!lotsCreated.includes(row.lot_id)) {
                         orders.push( { 
+                            scenarioid: scenarioid,
                             orderid: orderId, 
                             ordertype: 'CREA', 
                             ordertime: row.start_time, //total_start_time,
@@ -125,6 +128,7 @@ io.on('connection', function (socket) {
                         //console.log('TRAN next_eqp_id = ' + next_eqp_id);
                         if(prev_eqp_id !== null) {
                             orders.push( { 
+                                scenarioid: scenarioid,
                                 orderid: orderId, 
                                 ordertype: 'TRAN', 
                                 ordertime: row.dispatch_in_time,
@@ -140,6 +144,7 @@ io.on('connection', function (socket) {
 
                     if(row.start_time != null) {                    
                         orders.push( { 
+                            scenarioid: scenarioid,
                             orderid: orderId, 
                             ordertype: 'PROC', 
                             ordertime: row.start_time,
@@ -154,6 +159,7 @@ io.on('connection', function (socket) {
                     
                     if(row.end_time != null) {
                         orders.push( { 
+                            scenarioid: scenarioid,
                             orderid: orderId, 
                             ordertype: 'ENDT', 
                             ordertime: row.end_time,
@@ -189,13 +195,9 @@ io.on('connection', function (socket) {
         var prev_eqp_id = null;
         for(var i=0; i<lots.length; i++) {
             var row = lots[i];
-            if(row.dispatch_in_time >= dispatch_in_time && row.lot_id == lot_id) {
-                if(lot_id === 'LOT_PROD01_1')
-                console.log("findPrevEqp break " + dispatch_in_time)
-                break;
-            }
-            if(row.lot_id == lot_id) {
-                prev_eqp_id = row.eqp_id;
+            if(row.lot_id === lot_id) {
+                if(row.dispatch_in_time >= dispatch_in_time) break;
+                else prev_eqp_id = row.eqp_id;
             }
         }
         return prev_eqp_id;

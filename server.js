@@ -285,8 +285,8 @@ io.on('connection', function (socket) {
 
     }
 
-    socket.on("GetOrderData", function (prop) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
-        console.log("On GetOrderData: prop=" + prop);
+    socket.on("GetOrder", function (prop) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
+        console.log("On GetOrder: prop=" + prop);
         var selectParam;
         if(!isnull(prop)) selectParam = [prop.scenarioid];
 
@@ -298,7 +298,7 @@ io.on('connection', function (socket) {
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
-            socket.emit("ResultOrderData", res);    //받은 오브젝트 정보를 던짐
+            socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
 
         });
     });

@@ -5,11 +5,11 @@ var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
 //const redis = require('redis');
 //var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 
-var socketSaps = require('socket.io-client')('http://localhost:8072');
-//var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
+//var socketSaps = require('socket.io-client')('http://localhost:8072');
+var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
 
 socket.on('connect', function(){
-    socket.emit('GetResultDetail', {resultid: '1'});
+    //socket.emit('GetOrder', {scenarioid: 'S01'});
     //socket.emit('DeleteResult', {applid:'49'});
 });
 socket.on('event', function(data){});
@@ -20,7 +20,7 @@ socket.on("ResultGetOrder", function (data) {
 
 
 socketSaps.on('connect', function(){
-    socketSaps.emit('GetOrder', {interval:100});
+    socketSaps.emit('GetOrder', {scenarioid: 'S04'});
     //socket.emit('GetResultDetail', {resultid: '1'});
     //socket.emit('DeleteResult', {applid:'49'});
 });

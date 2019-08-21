@@ -381,7 +381,7 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam =  [data.usrid];
 
-        var selectQuery = 'SELECT U.usrid, name_en "name", permittype, permittoid, applid, applname_en applname, dispseq '
+        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq '
             + 'FROM cockpit.usr U '
             + 'LEFT OUTER JOIN cockpit.usrrole UR ON U.usrid = UR.usrid '
             + 'LEFT OUTER JOIN cockpit.rolepermit RP ON UR.roleid = RP.roleid '
@@ -420,7 +420,22 @@ io.on('connection', function (socket) {
 
         });
     });
+    socket.on("SetObjPropVal", function (data) {     
+        if(isnull(data)) return;
+        var param =  [data.applid, data.objid, data.classid, data.propid, data.propval];
+        console.log(param)
 
+        var updateQuery = 'UPDATE cockpit.objpropval '
+            + 'SET propval = $5 '
+            + 'WHERE applid = $1 '
+            + '  AND objid = $2 '
+            + '  AND classid = $3 '
+            + '  AND propid = $4 ';
+
+        pgpool.query(updateQuery, param, (err, res) => {
+            if (errlog(err)) return;
+        });
+    });
 
     //------------------------------모니터링------------------------------------
     var last_status_fetch_time;

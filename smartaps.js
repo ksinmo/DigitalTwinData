@@ -193,6 +193,20 @@ io.on('connection', function (socket) {
                                 parameter: null
                             });  
                             orderId++;
+                            if(eqpid === "EQP25" || eqpid === "EQP26" || eqpid === "EQP27" ) {
+                                orders.push( { 
+                                    version_no: version_no,
+                                    orderid: orderId, 
+                                    ordertype: 'TRAN', 
+                                    ordertime: row.end_time, 
+                                    beforeorderid: null, 
+                                    objid: eqpid, 
+                                    targetobjid1: row.lot_id, 
+                                    targetobjid2: "DOCK", 
+                                    parameter: null
+                                });
+                                orderId++;
+                            }                
                         }
                     }) 
                     console.log(orders.length)

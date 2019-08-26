@@ -381,7 +381,7 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam =  [data.usrid];
 
-        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq '
+        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq, hidewq '
             + 'FROM cockpit.usr U '
             + 'LEFT OUTER JOIN cockpit.usrrole UR ON U.usrid = UR.usrid '
             + 'LEFT OUTER JOIN cockpit.rolepermit RP ON UR.roleid = RP.roleid '
@@ -631,7 +631,21 @@ io.on('connection', function (socket) {
 
         });
     });
+    socket.on("GetClassProp", function (data) {     
+        if(isnull(data)) return;
+        var selectParam = [data.classid];
 
+        var selectQuery = 'SELECT classid, propid, defpropval, dispseq '
+            + 'FROM cockpit.classprop '
+            + 'WHERE classid = $1 '
+            + 'ORDER BY dispseq ';
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetClassProp", res); 
+
+        });
+    });
     //yyyy-MM-dd hh:mm:ss
     function getUTCFormat(timestamp) {
         var dateFormat = timestamp.getUTCFullYear() + '-' + String(timestamp.getUTCMonth() + 1).padStart(2, '0') + '-' + String(timestamp.getUTCDate()).padStart(2, '0');

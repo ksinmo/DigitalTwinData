@@ -187,7 +187,7 @@ io.on('connection', function (socket) {
 
                     row.prop = res2.rows;
                     if(idx == array.length - 1) { //last row select completed
-                        console.log("send ResultGetObject : " + util.inspect(res, {showHidden: false, depth: null}));
+                        //console.log("send ResultGetObject : " + util.inspect(res, {showHidden: false, depth: null}));
                         if(array.length == 1) 
                             socket.emit("ResultGetObject", res);   //받은 오브젝트 정보를 던짐
                         else
@@ -202,7 +202,7 @@ io.on('connection', function (socket) {
     socket.on("ObjectTableInsert", function (data) {
 
         console.log("ObjectTableInsert");
-        console.log(util.inspect(data, {showHidden: false, depth: null}));
+        //console.log(util.inspect(data, {showHidden: false, depth: null}));
 
         if(isnull(data)) return;
 
@@ -351,7 +351,7 @@ io.on('connection', function (socket) {
             if (errlog(err)) return;
 
             socket.emit("ResultClass", res);    //받은 오브젝트 정보를 던짐
-            console.log("send ResultClass : " + util.inspect(res, {showHidden: false, depth: null}));
+            //console.log("send ResultClass : " + util.inspect(res, {showHidden: false, depth: null}));
 
         });   
     });   
@@ -450,7 +450,7 @@ io.on('connection', function (socket) {
 
         pgpool.query(selectQuery, (err, res) => {
             if (errlog(err)) return;
-            console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
+            //console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetAllStatus", res); 
         });
     });
@@ -472,7 +472,7 @@ io.on('connection', function (socket) {
 
         pgpool.query(selectQuery, (err, res) => {
             if (errlog(err)) return;
-            console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
+            //console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetStatus", res); 
         });
 
@@ -541,7 +541,7 @@ io.on('connection', function (socket) {
                     }
                 });
                 result.rowCount = result.rows.length;
-                console.log("all completed : " + util.inspect(result, {showHidden: false, depth: null}));
+                //console.log("all completed : " + util.inspect(result, {showHidden: false, depth: null}));
                 socket.emit("ResultGetStatus", result); 
             });
         }).catch(function(err) {
@@ -563,7 +563,7 @@ io.on('connection', function (socket) {
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
-            console.log("send ResultGetResult : " + util.inspect(res, {showHidden: false, depth: null}));
+            //console.log("send ResultGetResult : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetResult", res); 
         });
     });
@@ -583,7 +583,7 @@ io.on('connection', function (socket) {
             res.rows[0].performancejson = JSON.parse(res.rows[0].performancejson);
             res.rows[0].alertjson = JSON.parse(res.rows[0].alertjson);
             res.rows[0].alertdetailjson = JSON.parse(res.rows[0].alertdetailjson);
-            console.log("send ResultGetResultDetail : " + util.inspect(res, {showHidden: false, depth: null}));
+            //console.log("send ResultGetResultDetail : " + util.inspect(res, {showHidden: false, depth: null}));
             socket.emit("ResultGetResultDetail", res); 
         });
     });

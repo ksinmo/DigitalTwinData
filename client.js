@@ -21,7 +21,7 @@ socket.on("ResultGetAppl", function (data) {
 
 
 socketSaps.on('connect', function(){
-    socketSaps.emit('GetOrder', {version_no: 'TSK-20190823-163652'});
+    socketSaps.emit('GetOrder', {version_no: 'TSK-20190828-174438'});
     //socketSaps.emit('GetVersion', {version_no: '1'});
     //socket.emit('DeleteResult', {applid:'49'});
 });

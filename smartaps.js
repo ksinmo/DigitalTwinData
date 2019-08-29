@@ -9,11 +9,12 @@ var config = {
     database: 'WS정밀'
 }
 
+
 console.log('0. created')
 io.on('connection', function (socket) {
     console.log('1. connected')
     socket.on("GetVersion", function () {
-        var selectQuery = ' SELECT distinct( version_no ) FROM dbo.EQP_PLAN  ';
+        var selectQuery = ' SELECT distinct( version_no ) FROM dbo.EQP_PLAN ORDER BY 1 DESC ';
         sql.connect(config, function(err) {
             if(err) { console.log(err);  sql.close(); return; }
             var request = new sql.Request();
@@ -28,10 +29,11 @@ io.on('connection', function (socket) {
     socket.on("GetOrder", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         if(data === null || data === undefined) return;
 
+
         var lastEqp;
         GetLastEqp().then(function(lastEqp1) {
             lastEqp = lastEqp1;
-            return GetReleaseHistory();
+            return GetReleaseHistory(data.version_no);
         }).then(function(release) {
             return GetOrderFromEqpPlan(data.version_no, release, lastEqp);
         }).then(function(orders) {
@@ -44,13 +46,16 @@ io.on('connection', function (socket) {
                 else
                     return a.ordertime.valueOf() < b.ordertime.valueOf() ? -1: 1
             });
-            //orders.sort(function(a,b) {
-            //    return a.orderid < b.orderid ? -1: 1
-            //});
-            //  console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            //  orders.forEach(function(row, idx, array) {
-            //     if(row.targetobjid1 === 'LOT_PROD01_01_23')
-            //         console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2)
+            // console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            // orders.forEach(function(row, idx, array) {
+            //     if(row.targetobjid1 === 'LOT_PROD01_01_3'
+            //     || row.targetobjid1 === 'LOT_PROD01_02_2'
+            //     || row.targetobjid1 === 'LOT_PROD01_05_1'
+            //     || row.targetobjid1 === 'LOT_PROD01_03_1'
+            //     || row.targetobjid1 === 'LOT_PROD01_04_3'
+            //     || row.targetobjid1 === 'LOT_PROD01_06_1'
+            //     || row.targetobjid1 === 'LOT_PROD01_1' )
+            //     console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
             // });
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
@@ -58,6 +63,7 @@ io.on('connection', function (socket) {
             console.error(err); // Error 출력
         });
     });
+
 
     //------------------------------Order Generation from VMS------------------------------------ 
     function GetLastEqp() {
@@ -85,12 +91,14 @@ io.on('connection', function (socket) {
             });
         });
     }
-    function GetReleaseHistory() {
+    function GetReleaseHistory(version_no) {
         return new Promise(function(resolve, reject) {
             sql.connect(config, function(err) {
                 if(err) { reject(err); return;  }
                 var request = new sql.Request();
-                var q = "SELECT batch_id, lot_id ,product_id, release_date, input_step_id, qty FROM [dbo].[RELEASE_HISTORY]";
+                var q = "SELECT batch_id, lot_id ,product_id, release_date, input_step_id, qty "
+                    + "FROM [dbo].[RELEASE_HISTORY] "
+                    + "WHERE version_no = '" + version_no + "'";
                 request.query(q, function(err1, {recordset} ) {
                     if(err1) { reject(err1); sql.close(); return;  }
                     resolve(recordset);
@@ -100,7 +108,6 @@ io.on('connection', function (socket) {
         });
     }
     function GetOrderFromEqpPlan(version_no, release, lastEqp) {
-        console.log(lastEqp)
         return new Promise(function(resolve, reject) {
         var FIRST_EQP = 'DBANK';
         var orders = [];
@@ -134,9 +141,10 @@ io.on('connection', function (socket) {
                 orderId++;
                 lotsCreated.push(row.lot_id)
             });
-            var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state ";
+            var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state, from_lot_ids ";
             q += "FROM dbo.EQP_PLAN ";
             q += "WHERE VERSION_NO = '" + version_no + "' ";
+            q += "AND machine_state <> 'BREAK' ";
             q += "ORDER BY dispatch_in_time, start_time ";
             request.query(q, function(err, { recordset }) {
                 if(err) { 
@@ -144,92 +152,162 @@ io.on('connection', function (socket) {
                     sql.close();
                     return; 
                 }
-                //lot 추출
+                //plan 합침
                 recordset.forEach(function(row, idx, array) {
                     plan.push(row);
                 });
                 recordset.forEach(function(row, idx, array) {
                     var eqpid = row.eqp_id;
-
-                    //lot이 없으면 생성
-                    if(!lotsCreated.includes(row.lot_id)) {
-                        orders.push( { 
-                            version_no: version_no,
-                            orderid: orderId, 
-                            ordertype: 'CREA', 
-                            ordertime: row.dispatch_in_time ? row.dispatch_in_time : row.start_time,
-                            beforeorderid: null, 
-                            objid: row.eqp_id, 
-                            targetobjid1: row.lot_id, 
-                            targetobjid2: row.product_id, 
-                            parameter: null
-                        });
-                        orderId++;
-                        lotsCreated.push(row.lot_id)
-                    }
-
-                    if(row.dispatch_in_time != null) {
-                        var prev_eqp_id = findPrevEqp(plan, row);
-                        if(prev_eqp_id !== null) {
+                    //조립 변형이 안된 경우
+                    if(row.from_lot_ids === null || row.from_lot_ids.length <= 0 || row.step_id === 'STEP98') { //STEP98 임시
+                        //lot이 없으면 생성
+                        if(!lotsCreated.includes(row.lot_id)) {
                             orders.push( { 
                                 version_no: version_no,
                                 orderid: orderId, 
-                                ordertype: 'TRAN', 
-                                //같은 장비에서 이동는 경우도 고려
-                                ordertime: prev_eqp_id === eqpid || prev_eqp_id === FIRST_EQP ? row.start_time : row.dispatch_in_time, 
+                                ordertype: 'CREA', 
+                                ordertime: row.dispatch_in_time ? row.dispatch_in_time : row.start_time,
                                 beforeorderid: null, 
-                                objid: prev_eqp_id, 
+                                objid: row.eqp_id, 
                                 targetobjid1: row.lot_id, 
-                                targetobjid2: eqpid, 
+                                targetobjid2: row.product_id, 
                                 parameter: null
                             });
                             orderId++;
+                            lotsCreated.push(row.lot_id)
                         }
-                    }
-
-                    if(row.start_time != null) {                    
-                        orders.push( { 
-                            version_no: version_no,
-                            orderid: orderId, 
-                            ordertype: 'PROC', 
-                            ordertime: row.start_time,
-                            beforeorderid: null, 
-                            objid: eqpid, 
-                            targetobjid1: row.lot_id, 
-                            targetobjid2: null, 
-                            parameter: null
-                        });  
-                        orderId++;
-                    }
-                    
-                    if(row.end_time != null) {
-                        orders.push( { 
-                            version_no: version_no,
-                            orderid: orderId, 
-                            ordertype: 'ENDT', 
-                            ordertime: row.end_time,
-                            beforeorderid: null, 
-                            objid: eqpid, 
-                            targetobjid1: row.lot_id, 
-                            targetobjid2: null, 
-                            parameter: null
-                        });  
-                        orderId++;
-                        if(lastEqp.includes(eqpid)) {
+                        if(row.dispatch_in_time != null) {
+                            var prev_eqp_id = findPrevEqp(plan, row.lot_id, row.dispatch_in_time, row.start_time);
+                            if(prev_eqp_id !== null) {
+                                orders.push( { 
+                                    version_no: version_no,
+                                    orderid: orderId, 
+                                    ordertype: 'TRAN', 
+                                    //같은 장비에서 이동는 경우도 고려
+                                    ordertime: prev_eqp_id === eqpid || prev_eqp_id === FIRST_EQP ? row.start_time : row.dispatch_in_time, 
+                                    beforeorderid: null, 
+                                    objid: prev_eqp_id, 
+                                    targetobjid1: row.lot_id, 
+                                    targetobjid2: eqpid, 
+                                    parameter: null
+                                });
+                                orderId++;
+                            }
+                        }
+    
+                        if(row.start_time != null) {                    
                             orders.push( { 
                                 version_no: version_no,
                                 orderid: orderId, 
-                                ordertype: 'TRAN', 
-                                ordertime: row.end_time, 
+                                ordertype: 'PROC', 
+                                ordertime: row.start_time,
                                 beforeorderid: null, 
                                 objid: eqpid, 
                                 targetobjid1: row.lot_id, 
-                                targetobjid2: "DOCK", 
+                                targetobjid2: null, 
                                 parameter: null
-                            });
+                            });  
                             orderId++;
-                        }                
-                    }
+                        }
+                        
+                        if(row.end_time != null) {
+                            orders.push( { 
+                                version_no: version_no,
+                                orderid: orderId, 
+                                ordertype: 'ENDT', 
+                                ordertime: row.end_time,
+                                beforeorderid: null, 
+                                objid: eqpid, 
+                                targetobjid1: row.lot_id, 
+                                targetobjid2: null, 
+                                parameter: null
+                            });  
+                            orderId++;
+                            if(lastEqp.includes(eqpid)) {
+                                orders.push( { 
+                                    version_no: version_no,
+                                    orderid: orderId, 
+                                    ordertype: 'TRAN', 
+                                    ordertime: row.end_time, 
+                                    beforeorderid: null, 
+                                    objid: eqpid, 
+                                    targetobjid1: row.lot_id, 
+                                    targetobjid2: "DOCK", 
+                                    parameter: null
+                                });
+                                orderId++;
+                            }                
+                        }
+                    } else { // 조립, 변형이 된 경우
+                        row.from_lot_ids.split(',').forEach(function(lot_id, idx, array) {
+                            if(row.dispatch_in_time != null) {
+                                var prev_eqp_id = findPrevEqp(plan, lot_id, row.dispatch_in_time, row.start_time);
+                                if(prev_eqp_id !== null) {
+                                    orders.push( { 
+                                        version_no: version_no,
+                                        orderid: orderId, 
+                                        ordertype: 'TRAN', 
+                                        //같은 장비에서 이동는 경우도 고려
+                                        ordertime: prev_eqp_id === eqpid || prev_eqp_id === FIRST_EQP ? row.start_time : row.dispatch_in_time, 
+                                        beforeorderid: null, 
+                                        objid: prev_eqp_id, 
+                                        targetobjid1: lot_id, 
+                                        targetobjid2: eqpid, 
+                                        parameter: null
+                                    });
+                                    orderId++;
+                                }
+                            }
+                            if(row.start_time != null) {                    
+                                orders.push( { 
+                                    version_no: version_no,
+                                    orderid: orderId, 
+                                    ordertype: 'PROC', 
+                                    ordertime: row.start_time,
+                                    beforeorderid: null, 
+                                    objid: eqpid, 
+                                    targetobjid1: lot_id, 
+                                    targetobjid2: null, 
+                                    parameter: null
+                                });  
+                                orderId++;
+                            }
+                            
+                            if(row.end_time != null) {
+                                //조립 완료 후 생성. ENDT의 targetobjid2가 있으면 client에서 생성함.
+                                orders.push( { 
+                                    version_no: version_no,
+                                    orderid: orderId, 
+                                    ordertype: 'ENDT', 
+                                    ordertime: row.end_time,
+                                    beforeorderid: null, 
+                                    objid: eqpid, 
+                                    targetobjid1: lot_id, 
+                                    targetobjid2: row.lot_id,
+                                    parameter: row.product_id
+                                });  
+                                orderId++;
+                                //client에서 생성한 lot은 이후에도 생성하지 않음
+                                if(!lotsCreated.includes(row.lot_id)) {
+                                    lotsCreated.push(row.lot_id)
+                                }
+                                if(lastEqp.includes(eqpid)) {
+                                    orders.push( { 
+                                        version_no: version_no,
+                                        orderid: orderId, 
+                                        ordertype: 'TRAN', 
+                                        ordertime: row.end_time, 
+                                        beforeorderid: null, 
+                                        objid: eqpid, 
+                                        targetobjid1: row.lot_id, 
+                                        targetobjid2: "DOCK", 
+                                        parameter: null
+                                    });
+                                    orderId++;
+                                }
+                            }
+                        });
+                    }                    
                 }) 
                 console.log(orders.length)
                 resolve(orders);
@@ -238,6 +316,7 @@ io.on('connection', function (socket) {
         });
         });
     }
+
 
     function findNextEqp(lots, lot) {
         var next_eqp_id = null;
@@ -250,19 +329,34 @@ io.on('connection', function (socket) {
         }
         return next_eqp_id;
     }
-    function findPrevEqp(plan, lot) {
+    // function findPrevEqp(plan, lot) {
+    //     var prev_eqp_id = null;
+    //     for(var i=0; i<plan.length; i++) {
+    //         var row = plan[i];
+    //         if(row.lot_id === lot.lot_id) {
+    //             if(row.dispatch_in_time.valueOf() > lot.dispatch_in_time.valueOf() 
+    //               || (row.dispatch_in_time.valueOf() === lot.dispatch_in_time.valueOf() && row.start_time.valueOf() >= lot.start_time.valueOf()) )
+    //      break;
+    //             else 
+    //                 prev_eqp_id = row.eqp_id;
+    //         }
+    //     }
+    //     return prev_eqp_id;
+    // }
+    function findPrevEqp(plan, lot_id, dispatch_in_time, start_time) {
         var prev_eqp_id = null;
         for(var i=0; i<plan.length; i++) {
             var row = plan[i];
-            if(row.lot_id === lot.lot_id) {
-                if(row.dispatch_in_time.valueOf() > lot.dispatch_in_time.valueOf() 
-                  || (row.dispatch_in_time.valueOf() === lot.dispatch_in_time.valueOf() && row.start_time.valueOf() >= lot.start_time.valueOf()) )
-		    break;
+            if(row.lot_id === lot_id) {
+                if(row.dispatch_in_time.valueOf() > dispatch_in_time.valueOf() 
+                  || (row.dispatch_in_time.valueOf() === dispatch_in_time.valueOf() && row.start_time.valueOf() >= start_time.valueOf()) )
+            break;
                 else 
                     prev_eqp_id = row.eqp_id;
             }
         }
         return prev_eqp_id;
     }
+
 
 })

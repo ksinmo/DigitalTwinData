@@ -190,16 +190,16 @@ io.on('connection', function (socket) {
                             lotsCreated[row.lot_id] = row.process_qty;
                         }
                         if(row.dispatch_in_time != null) {
-                            var prev_eqp_id = findPrevEqp(plan, row.lot_id, row.dispatch_in_time, row.start_time);
-                            if(prev_eqp_id !== null) {
+                            var prev_plan = findPrevPlan(plan, row.lot_id, row.dispatch_in_time, row.start_time);
+                            if(prev_plan !== null) {
                                 orders.push( { 
                                     version_no: version_no,
                                     orderid: orderId, 
                                     ordertype: 'TRAN', 
                                     //같은 장비에서 이동는 경우도 고려
-                                    ordertime: prev_eqp_id === eqpid || prev_eqp_id === FIRST_EQP ? row.start_time : row.dispatch_in_time, 
+                                    ordertime: prev_plan.eqp_id === eqpid || prev_plan.eqp_id === FIRST_EQP ? row.start_time : row.dispatch_in_time, 
                                     beforeorderid: null, 
-                                    objid: prev_eqp_id, 
+                                    objid: prev_plan.eqp_id, 
                                     targetobjid1: row.lot_id, 
                                     targetobjid2: eqpid, 
                                     parameter: null
@@ -350,34 +350,7 @@ io.on('connection', function (socket) {
         }
         return next_eqp_id;
     }
-    // function findPrevEqp(plan, lot) {
-    //     var prev_eqp_id = null;
-    //     for(var i=0; i<plan.length; i++) {
-    //         var row = plan[i];
-    //         if(row.lot_id === lot.lot_id) {
-    //             if(row.dispatch_in_time.valueOf() > lot.dispatch_in_time.valueOf() 
-    //               || (row.dispatch_in_time.valueOf() === lot.dispatch_in_time.valueOf() && row.start_time.valueOf() >= lot.start_time.valueOf()) )
-    //      break;
-    //             else 
-    //                 prev_eqp_id = row.eqp_id;
-    //         }
-    //     }
-    //     return prev_eqp_id;
-    // }
-    function findPrevEqp(plan, lot_id, dispatch_in_time, start_time) {
-        var prev_eqp_id = null;
-        for(var i=0; i<plan.length; i++) {
-            var row = plan[i];
-            if(row.lot_id === lot_id) {
-                if(row.dispatch_in_time.valueOf() > dispatch_in_time.valueOf() 
-                  || (row.dispatch_in_time.valueOf() === dispatch_in_time.valueOf() && row.start_time.valueOf() >= start_time.valueOf()) )
-            break;
-                else 
-                    prev_eqp_id = row.eqp_id;
-            }
-        }
-        return prev_eqp_id;
-    }
+    
     function findPrevPlan(plan, lot_id, dispatch_in_time, start_time) {
         var prev_plan = null;
         for(var i=0; i<plan.length; i++) {

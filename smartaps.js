@@ -158,7 +158,6 @@ io.on('connection', function (socket) {
             var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state, from_lot_ids "
                 + "FROM dbo.EQP_PLAN "
                 + "WHERE version_no = @version_no "
-                + "AND machine_state <> 'BREAK' "
                 + "ORDER BY dispatch_in_time, start_time ";
             sql.connect(config).then(pool => {
                 return pool.request()
@@ -171,8 +170,34 @@ io.on('connection', function (socket) {
                 });
                 recordset.forEach(function(row, idx, array) {
                     var eqpid = row.eqp_id;
-                    //조립 변형이 안된 경우
-                    if(row.from_lot_ids === null || row.from_lot_ids.length <= 0 ) {
+                    if(row.machine_state === "BREAK") {
+                        //조립과 관계 없는 Break order부터 처리. 
+                        orders.push( { 
+                            version_no: version_no,
+                            orderid: orderId, 
+                            ordertype: 'BRKS', 
+                            ordertime: row.start_time,
+                            beforeorderid: null, 
+                            objid: row.eqp_id, 
+                            targetobjid1: null, 
+                            targetobjid2: null, 
+                            parameter: null
+                        }); 
+                        orderId++;
+                        orders.push( { 
+                            version_no: version_no,
+                            orderid: orderId, 
+                            ordertype: 'BRKE', 
+                            ordertime: row.end_time,
+                            beforeorderid: null, 
+                            objid: row.eqp_id, 
+                            targetobjid1: null, 
+                            targetobjid2: null, 
+                            parameter: null
+                        }); 
+                        orderId++;
+                    } else if(row.from_lot_ids === null || row.from_lot_ids.length <= 0 ) {
+                        //조립 변형이 안된 경우
                         //lot이 없으면 생성
                         if(!lotsCreated[row.lot_id]) {
                             orders.push( { 

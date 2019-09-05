@@ -27,8 +27,9 @@ io.on('connection', function (socket) {
         });
     });
     socket.on("GetProduct", function () {
-        var selectQuery = ' SELECT product_id, product_name, product_type, process_id, lot_size, input_batch_size, cust_code '
-            + 'FROM dbo.PRODUCT '
+        var selectQuery = ' SELECT product_id, product_name, product_type, P.process_id, PR.process_name, lot_size, input_batch_size, cust_code '
+            + 'FROM dbo.PRODUCT P '
+            + 'LEFT OUTER JOIN dbo.PROCESS PR ON P.PROCESS_ID = PR.PROCESS_ID ';
         sql.connect(config, function(err) {
             if(err) { console.log(err);  sql.close(); return; }
             var request = new sql.Request();
@@ -40,9 +41,40 @@ io.on('connection', function (socket) {
             });
         });
     });
+    socket.on("UpdateEqpArrange", function (data) {
+        var q = 'DELETE FROM dbo.EQP_ARRANGE '
+            + 'WHERE eqp_id = @eqp_id';
+        var localPool;
+        var allPromise = [];
+        sql.connect(config).then(pool => {
+            localPool = pool;
+            return pool.request()
+            .input("eqp_id", sql.VarChar(30), data.eqp_id)
+            .query(q)
+        }).then( () => {
+            var q = 'INSERT INTO dbo.EQP_ARRANGE '
+                + '(PRODUCT_ID, PROCESS_ID, STEP_ID, EQP_ID, TACT_TIME, PROC_TIME, EFF_START_DATE, EFF_END_DATE) '
+                + ' VALUES(@product_id, @process_id, @step_id, @eqp_id, 300, 300, \'\', \'\') ';
+            data.rows.forEach(function(row) {
+                allPromise.push(localPool.request()
+                    .input("product_id", sql.VarChar(30), row.product_id)
+                    .input("process_id", sql.VarChar(30), row.process_id)
+                    .input("step_id", sql.VarChar(30), row.step_id)
+                    .input("eqp_id", sql.VarChar(30), data.eqp_id)
+                    .query(q)
+                );
+            });   
+            Promise.all(allPromise).then(function(res) {
+                sql.close();
+            });
+        }).catch(err => {
+            console.log(err);
+            sql.close();
+        });
+    });
+
     socket.on("GetOrder", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         if(data === null || data === undefined) return;
-
 
         var lastEqp;
         GetLastEqp().then(function(lastEqp1) {

@@ -599,6 +599,7 @@ io.on('connection', function (socket) {
             + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9 ) ';
 
         pgpool.query(insertQuery, insertParam, (err, res) => {
+            console.log(res);
             if (errlog(err)) 
                 console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
         });
@@ -634,9 +635,9 @@ io.on('connection', function (socket) {
     socket.on("GetClassProp", function (data) {     
         if(isnull(data)) return;
         var selectParam = [data.classid];
-
-        var selectQuery = 'SELECT classid, propid, defpropval, dispseq '
-            + 'FROM cockpit.classprop '
+        var selectQuery = 'SELECT classid, C.propid, defpropval, P.propname_en propname, C.dispseq '
+            + 'FROM cockpit.classprop C '
+            + 'LEFT OUTER JOIN cockpit.prop P ON C.propid = P.propid '
             + 'WHERE classid = $1 '
             + 'ORDER BY dispseq ';
         

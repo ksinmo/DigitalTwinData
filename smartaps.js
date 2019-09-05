@@ -72,7 +72,23 @@ io.on('connection', function (socket) {
             sql.close();
         });
     });
-
+    socket.on("UpdateEquipmentPreset", function (data) {
+        var q = 'UPDATE dbo.EQUIPMENT '
+            + 'SET PRESET_ID = @preset_id '
+            + 'WHERE EQP_ID = @eqp_id ';
+        sql.connect(config).then(pool => {
+            localPool = pool;
+            return pool.request()
+            .input("preset_id", sql.VarChar(30), data.preset_id)
+            .input("eqp_id", sql.VarChar(30), data.eqp_id)
+            .query(q)
+        }).then( () => {
+            sql.close();
+        }).catch(err => {
+            console.log(err);
+            sql.close();
+        });            
+    });
     socket.on("GetOrder", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         if(data === null || data === undefined) return;
 

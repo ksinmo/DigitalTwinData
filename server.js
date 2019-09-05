@@ -258,6 +258,7 @@ io.on('connection', function (socket) {
         }
 
         //입력 요청한 데이터에 빠진 속성을 추가해서 입력함. 부모 클래스의 속성도 구해야 함. Recursive CTE
+        //ClassProp에서 삭제된 prop을 삭제하는 로직이 없음.
         var selectQuery =
             'WITH RECURSIVE CTE AS '
             + '( SELECT  classid, parentclassid  FROM    cockpit.class WHERE   classid = $1 '

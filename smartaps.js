@@ -26,20 +26,25 @@ io.on('connection', function (socket) {
             });
         });
     });
-    socket.on("GetProduct", function () {
-        var selectQuery = ' SELECT product_id, product_name, product_type, P.process_id, PR.process_name, lot_size, input_batch_size, cust_code '
+    socket.on("GetProduct", function (data) {
+        var eqp_id = data ?  data.eqp_id : '';
+        var q = ' SELECT P.product_id, product_name, product_type, P.process_id, PR.process_name, lot_size, input_batch_size, cust_code, A.eqp_id '
             + 'FROM dbo.PRODUCT P '
-            + 'LEFT OUTER JOIN dbo.PROCESS PR ON P.PROCESS_ID = PR.PROCESS_ID ';
-        sql.connect(config, function(err) {
-            if(err) { console.log(err);  sql.close(); return; }
-            var request = new sql.Request();
-            request.query(selectQuery, function(err, {recordset}) {
-                if(err) { console.log(err);  return; }
-                var res = { rowCount: recordset.length, rows: recordset}
-                socket.emit("ResultGetProduct", res);    
-                sql.close();
-            });
-        });
+            + 'LEFT OUTER JOIN dbo.PROCESS PR ON P.PROCESS_ID = PR.PROCESS_ID '
+            + 'LEFT OUTER JOIN  dbo.EQP_ARRANGE A ON P.product_id = A.product_id AND A.eqp_id = @eqp_id ';
+        sql.connect(config).then(pool => {
+            localPool = pool;
+            return pool.request()
+            .input("eqp_id", sql.VarChar(30), eqp_id)
+            .query(q)
+        }).then( ({recordset}) => {
+            var res = { rowCount: recordset.length, rows: recordset}
+            socket.emit("ResultGetProduct", res);    
+            sql.close();
+        }).catch(err => {
+            console.log(err);
+            sql.close();
+        });            
     });
     socket.on("UpdateEqpArrange", function (data) {
         var q = 'DELETE FROM dbo.EQP_ARRANGE '

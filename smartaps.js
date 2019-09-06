@@ -6,25 +6,34 @@ var config = {
     password: 'tbw!2020',
     server: 'portal.tobeway.com',
     port: 1812,
-    database: 'WS정밀'
+    database: 'WS정밀',
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000
+    }
 }
-
-
 console.log('0. created')
+const connectPool = new sql.ConnectionPool(config).connect();
+// const connectPool = new sql.ConnectionPool(config, err => {
+//     console.log(err)
+// }).connect();
+ 
 io.on('connection', function (socket) {
     console.log('1. connected')
     socket.on("GetVersion", function () {
-        var selectQuery = ' SELECT distinct( version_no ) FROM dbo.EQP_PLAN ORDER BY 1 DESC ';
-        sql.connect(config, function(err) {
-            if(err) { console.log(err);  sql.close(); return; }
-            var request = new sql.Request();
-            request.query(selectQuery, function(err, {recordset}) {
-                if(err) { console.log(err);  return; }
-                var res = { rowCount: recordset.length, rows: recordset}
-                socket.emit("ResultGetVersion", res);    //받은 오브젝트 정보를 던짐
-                sql.close();
-            });
-        });
+        var q = ' SELECT distinct( version_no ) FROM dbo.EQP_PLAN ORDER BY 1 DESC ';
+        connectPool.then((pool) => {
+            return pool.request()
+            .query(q)
+        }).then( ({recordset}) => {
+            var res = { rowCount: recordset.length, rows: recordset}
+            socket.emit("ResultGetVersion", res);    
+            sql.close();
+        }).catch(err => {
+            console.log(err);
+            sql.close();
+        });        
     });
     socket.on("GetProduct", function (data) {
         var eqp_id = data ?  data.eqp_id : '';
@@ -32,8 +41,8 @@ io.on('connection', function (socket) {
             + 'FROM dbo.PRODUCT P '
             + 'LEFT OUTER JOIN dbo.PROCESS PR ON P.PROCESS_ID = PR.PROCESS_ID '
             + 'LEFT OUTER JOIN  dbo.EQP_ARRANGE A ON P.product_id = A.product_id AND A.eqp_id = @eqp_id ';
-        sql.connect(config).then(pool => {
-            localPool = pool;
+
+        connectPool.then((pool) => {
             return pool.request()
             .input("eqp_id", sql.VarChar(30), eqp_id)
             .query(q)
@@ -45,13 +54,14 @@ io.on('connection', function (socket) {
             console.log(err);
             sql.close();
         });            
+        
     });
     socket.on("UpdateEqpArrange", function (data) {
         var q = 'DELETE FROM dbo.EQP_ARRANGE '
             + 'WHERE eqp_id = @eqp_id';
         var localPool;
         var allPromise = [];
-        sql.connect(config).then(pool => {
+        connectPool.then((pool) => {
             localPool = pool;
             return pool.request()
             .input("eqp_id", sql.VarChar(30), data.eqp_id)
@@ -78,10 +88,11 @@ io.on('connection', function (socket) {
         });
     });
     socket.on("UpdateEquipmentPreset", function (data) {
+        console.log("UpdateEquipmentPreset :" + data.eqp_id + "," + data.preset_id)
         var q = 'UPDATE dbo.EQUIPMENT '
             + 'SET PRESET_ID = @preset_id '
             + 'WHERE EQP_ID = @eqp_id ';
-        sql.connect(config).then(pool => {
+        connectPool.then((pool) => {
             localPool = pool;
             return pool.request()
             .input("preset_id", sql.VarChar(30), data.preset_id)
@@ -143,7 +154,7 @@ io.on('connection', function (socket) {
                 + "INNER JOIN dbo.PRODUCT P ON R.PROCESS_ID = P.PROCESS_ID "
                 + "WHERE P.PRODUCT_TYPE = 'FG' "
                 + "ORDER BY STEP_SEQ DESC) ";
-            sql.connect(config).then(pool => {
+            connectPool.then((pool) => {
                 return pool.request()
                 .query(q)
             }).then( ({recordset}) => {
@@ -166,7 +177,7 @@ io.on('connection', function (socket) {
                 + "FROM [dbo].[RELEASE_HISTORY] "
                 + "WHERE version_no = @version_no ";
                 //+ "WHERE version_no = '" + version_no + "'";
-            sql.connect(config).then(pool => {
+            connectPool.then((pool) => {
                 return pool.request()
                 .input("version_no", sql.VarChar(30), version_no)
                 .query(q)
@@ -212,7 +223,7 @@ io.on('connection', function (socket) {
                 + "FROM dbo.EQP_PLAN "
                 + "WHERE version_no = @version_no "
                 + "ORDER BY dispatch_in_time, start_time ";
-            sql.connect(config).then(pool => {
+            connectPool.then((pool) => {
                 return pool.request()
                 .input("version_no", sql.VarChar(30), version_no)
                 .query(q)

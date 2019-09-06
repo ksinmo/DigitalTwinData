@@ -5,9 +5,11 @@ const util = require('util');
 const redis = require('redis');
 const promise = require('promise');
 var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
+var socketClient = require('socket.io-client');
 const OBJECT_STATUS_CHANNEL = "ObjectStatus";
 var timerId = 0;
 var redisPub;
+
 
 console.log('0. created')
 io.on('connection', function (socket) {
@@ -28,6 +30,7 @@ io.on('connection', function (socket) {
             console.error('connection error', err.stack);
         } else {
             console.log('2. pg connected');
+            pgpool
         }
     });
 
@@ -119,31 +122,6 @@ io.on('connection', function (socket) {
 
     });
 
-    //------------------------------Monitoring Test Data 생성 ----------------------------
-    socket.on("StartMonitoringData", function (data) {
-        redisPub = redis.createClient(6379, 'mdmcloud.tobeway.com');
-        // PUBLISH ObjectStatus EQP01:OPERATING:Y
-        
-        timerId = setInterval(function() {
-            var eqp = 'EQP0' + Math.floor((Math.random() * 9) + 1);
-            var processingWIP = Math.floor((Math.random() * 3));
-            var message = eqp + ':OPERATING:';
-            message += (processingWIP > 0) ? 'Y' : 'N';
-            //console.log(message);
-            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
-            message = eqp + ':PROCESSINGWIP:' + processingWIP;
-            //console.log(message);
-            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
-            message = eqp + ':DQWIP:' + Math.floor((Math.random() * 10) );
-            //console.log(message);
-            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
-        }, data.interval)
-    });
-    socket.on("StopMonitoringData", function (data) {
-        clearInterval(timerId);
-        if(redisPub !== undefined && redisPub !== null ) redisPub.quit();
-    });
-    
     //------------------------------모델링------------------------------------    
 
     socket.on("GetObject", function (prop) {
@@ -210,9 +188,9 @@ io.on('connection', function (socket) {
             'INSERT INTO cockpit.object(  objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
             //+ ' CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, Description)'
-            + 'description, active, applid) '
+            + 'description, active, applid, ctrl1, ctrl2) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15, $16, $17 )';
 
         var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1';//다 지우고
         //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
@@ -228,7 +206,7 @@ io.on('connection', function (socket) {
                         row["rotationx"], row["rotationy"], row["rotationz"],
                         row["scalex"], row["scaley"], row["scalez"], row["speed"],
                         //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
-                        row["description"], row["applid"]
+                        row["description"], row["applid"], row["ctrl1"], row["ctrl2"]
                     ];
                 
                 pgpool.query(insertQuery, insertParam, (err, res) => {
@@ -424,7 +402,6 @@ io.on('connection', function (socket) {
     socket.on("SetObjPropVal", function (data) {     
         if(isnull(data)) return;
         var param =  [data.applid, data.objid, data.classid, data.propid, data.propval];
-        console.log(param)
 
         var updateQuery = 'UPDATE cockpit.objpropval '
             + 'SET propval = $5 '
@@ -435,10 +412,64 @@ io.on('connection', function (socket) {
 
         pgpool.query(updateQuery, param, (err, res) => {
             if (errlog(err)) return;
+            
+            //SAPS 반영
+            if(data.applid === 'SAPS' && data.propid === 'PRESET') {
+                var q = "SELECT serverurl FROM cockpit.appl where applid = $1 ";
+                var param = [data.applid];
+                pgpool.query(q, param, (err, res) => {
+                    if(res.rows.length > 0) {
+                        console.log(res.rows[0].serverurl)
+                        var socketAps = socketClient(res.rows[0].serverurl)
+                        socketAps.on('connect', function(){
+                            console.log('connected aps')
+                            socketAps.emit('UpdateEquipmentPreset', {eqp_id: data.objid, preset_id: data.propval});
+                        });
+                    }
+                });
+            }
         });
     });
 
     //------------------------------모니터링------------------------------------
+    //------------------------------Monitoring Test Data 생성 ----------------------------
+    socket.on("StartMonitoringData", function (data) {
+        redisPub = redis.createClient(6379, 'mdmcloud.tobeway.com');
+        // PUBLISH ObjectStatus EQP01:OPERATING:Y
+        
+        timerId = setInterval(function() {
+            var eqp = 'EQP0' + Math.floor((Math.random() * 9) + 1);
+            var processingWIP = Math.floor((Math.random() * 3));
+            var message = eqp + ':OPERATING:';
+            message += (processingWIP > 0) ? 'Y' : 'N';
+            //console.log(message);
+            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+            message = eqp + ':PROCESSINGWIP:' + processingWIP;
+            //console.log(message);
+            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+            message = eqp + ':DQWIP:' + Math.floor((Math.random() * 10) );
+            //console.log(message);
+            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+        }, data.interval)
+    });
+    socket.on("StopMonitoringData", function (data) {
+        clearInterval(timerId);
+        if(redisPub !== undefined && redisPub !== null ) redisPub.quit();
+    });
+    // pub/sub
+    // PUBLISH ObjectStatus EQP01:OPERATING:Y
+    redisClient.on("message", function(channel, message) {
+        if(channel != OBJECT_STATUS_CHANNEL) return;
+
+        var result = {command: 'SELECT', rowCount: 1, oid: null, rows: []};
+        var keysplit = message.split(':');
+        if(keysplit.length == 3) {
+            result.rows.push({objid:keysplit[0], propid:keysplit[1], propval:keysplit[2]});
+            socket.emit("ResultGetStatus", result); 
+        }
+    });   
+    redisClient.subscribe(OBJECT_STATUS_CHANNEL);
+
     var last_status_fetch_time;
     //최초 호출할 때는 Changed와 관계없이 모든 Status를 반환한다.
     socket.on("GetAllStatus", function (data) {
@@ -455,6 +486,7 @@ io.on('connection', function (socket) {
             socket.emit("ResultGetAllStatus", res); 
         });
     });
+    //이 함수는 사용하지 않음. 클라이언트가 요청하지 않고, SUB데이터를 수동으로 받음.
     socket.on("GetStatus", function (data) {
         console.log("GetStatus: last_status_fetch_time=" + last_status_fetch_time);
      
@@ -496,61 +528,8 @@ io.on('connection', function (socket) {
         });
     });
 
-    // pub/sub
-    // PUBLISH ObjectStatus EQP01:OPERATING:Y
-    redisClient.on("message", function(channel, message) {
-        if(channel != OBJECT_STATUS_CHANNEL) return;
-
-        var result = {command: 'SELECT', rowCount: 1, oid: null, rows: []};
-        var keysplit = message.split(':');
-        if(keysplit.length == 3) {
-            result.rows.push({objid:keysplit[0], propid:keysplit[1], propval:keysplit[2]});
-            socket.emit("ResultGetStatus", result); 
-        }
-    });   
-    redisClient.subscribe(OBJECT_STATUS_CHANNEL);
+    /* End of 모니터링 */
     
-    //사용하지 않음. pub/sub로 변경
-    function getStatusFromRedis(data) {
-        console.log("GetStatus: last_status_fetch_time=" + last_status_fetch_time);
-        var dataPromise = function(key) {
-            return new Promise(function(resolve, reject){
-                redisClient.hgetall(key, function(err, res) {
-                    resolve({key, val:res});
-                });
-            });
-        }
-        var allRecords = [];
-        new Promise(function(resolve, reject) {
-            redisClient.keys("ObjectStatus*", function(err, res) {
-                if (err) reject(err);
-                else resolve(res);
-            });
-        }).then(function(res){
-            var arrPromise = [];
-            res.forEach(function(row) {
-                arrPromise.push(dataPromise(row));
-            });
-            Promise.all(arrPromise).then(function(res) {
-                allRecords = res.filter(x => x != undefined && x != null);
-                //CHANGED == Y만 추출
-                var result = {command: 'SELECT', rowCount: 0, oid: null, rows: []};
-                allRecords.forEach(function(row){
-                    var keysplit = row.key.split(':');
-                    if(keysplit.length == 2) {
-                        result.rows.push({objid:keysplit[1], propid:row.val["propid"], propval:row.val["propval"], changed:row.val["changed"]});                            
-                    }
-                });
-                result.rowCount = result.rows.length;
-                //console.log("all completed : " + util.inspect(result, {showHidden: false, depth: null}));
-                socket.emit("ResultGetStatus", result); 
-            });
-        }).catch(function(err) {
-            console.log(err);
-        });     
-        last_status_fetch_time = new Date();
-    }
-
     socket.on("GetResult", function (data) {
         console.log("GetResult");
         if(isnull(data)) return;
@@ -671,156 +650,7 @@ io.on('connection', function (socket) {
         }
         return false;
     }
-
-
-
-
-
-     //------------------------------Order Generation from VMS------------------------------------   
-    socket.on("CreateOrderFromEqpPlan", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
-        var FIRST_STEP = 'STEP01';
-        var FIRST_EQP = 'DBANK';
-        var LAST_STEP = 'STEP07';
-        var LAST_EQP = 'DOCK';
-        console.log("On CreateOrderFromEqpPlan");
-
-        var selectQuery = ' select scenario_id, eqp_id, lot_id, product_id, process_id, step_id, lot_qty, dispatch_in_time, start_time, end_time, tool_id from cockpit.eqpplan order by dispatch_in_time' ;
-        var insertQuery = 'INSERT INTO cockpit.order ( scenarioid, orderid, ordertype, ordertime, beforeorderid, objid, targetobjid1, targetobjid2, parameter)  VALUES (\'S02\', $1, $2, $3, $4, $5, $6, $7, $8);';    
-
-        pgpool.query(selectQuery, '', (err, res) => {
-            if (errlog(err)) return;
-
-            var orderId = 1;
-            console.log('Creation Order');
-            var lots = [];
-            var total_start_time = res.rows[0].start_time;
-
-            orderId += insertShift(total_start_time, insertQuery);
-
-            res.rows.forEach(function(row, idx, array) {
-                var eqpid = row.eqp_id;
-                if(eqpid == '') {
-                    if(row.step_id == 'STEP04') eqpid = 'BUCK01';
-                    else if(row.step_id == 'STEP06') eqpid = 'BUCK02';
-                    else if(row.step_id == 'STEP07') eqpid = 'FINSP';
-                }
-                lots.push({lot_id: row.lot_id, eqp_id: eqpid, dispatch_in_time: row.dispatch_in_time, step_id: row.step_id});
-                //WIP은 시작 시점에 모두 생성함 -> 완료되는 것만 생성함.
-                if(row.step_id == LAST_STEP) {
-                    var insertParam = [ orderId, 'CREA', total_start_time, null, FIRST_EQP, row.lot_id, row.product_id, null];
-                    pgpool.query(insertQuery, insertParam, (err, res) => {
-                        if(err) throw err
-                        console.log('INSERT OK');
-                    });
-                    orderId++;
-                }
-            });
-            res.rows.forEach(function(row, idx, array) {
-                var eqpid = row.eqp_id;
-                if(eqpid == '') {
-                    if(row.step_id == 'STEP04') eqpid = 'BUCK01';
-                    else if(row.step_id == 'STEP06') eqpid = 'BUCK02';
-                    else if(row.step_id == 'STEP07') eqpid = 'FINSP';
-                }
-                console.log("[" + orderId + "] " + eqpid + "," + row.lot_id + "," + row.dispatch_in_time );
-
-                if(lots.filter(x => x.lot_id === row.lot_id && x.step_id === LAST_STEP).length == 0) return; //최초 생성되지 않는 명령은 수행하지 않음.
-
-                //시작 시간을 첫 Eqp 시작 10분 전으로 수정
-                if(row.step_id == FIRST_STEP && row.start_time != null) { 
-                    var start_time = new Date(row.start_time)
-                    var tran_time = new Date ( start_time );
-                    if( row.start_time > total_start_time)
-                        tran_time.setTime ( start_time.getTime() - 10*60*1000 );
-                    var insertParam = [ orderId, 'TRAN', tran_time, null, FIRST_EQP, row.lot_id, eqpid, null];
-                    pgpool.query(insertQuery, insertParam, (err, res) => {
-                        if (errlog(err)) return;
-                        console.log('INSERT OK');
-                    });
-                    orderId++;
-                }
-
-                if(row.start_time != null) {                    
-                    var insertParam = [ orderId, 'PROC', row.start_time, null, eqpid, row.lot_id, null, null];
-                    pgpool.query(insertQuery, insertParam, (err, res) => {
-                        if (errlog(err)) return;
-                        console.log('INSERT OK');
-                    });
-                    orderId++;
-                }
-                
-                if(row.end_time != null) {
-                    var insertParam = [ orderId, 'ENDT', row.end_time, null, eqpid, row.lot_id, null, null];
-                    pgpool.query(insertQuery, insertParam, (err, res) => {
-                        if (errlog(err)) return;
-                        console.log('INSERT OK');
-                    });
-                    orderId++;
-
-                    var next_eqp_id;
-                    if(row.step_id == LAST_STEP) next_eqp_id = LAST_EQP;
-                    else  next_eqp_id = findNextEqp(lots, row.lot_id, row.dispatch_in_time);
-                    console.log('TRAN next_eqp_id = ' + next_eqp_id);
-                    var insertParam = [ orderId, 'TRAN', row.end_time, null, eqpid, row.lot_id, next_eqp_id,  row.transfer_time];
-                    pgpool.query(insertQuery, insertParam, (err, res) => {
-                        if (errlog(err)) return;
-                        console.log('INSERT OK');
-                    });
-                    orderId++;
-                }
-            });
-        });
-    });
-
-    function insertShift(start_time, insertQuery) {
-        //SHIFT 
-        var start_time_8 = new Date(start_time.getTime() + 8*60*60*1000);
-        var start_time_16 = new Date(start_time.getTime() + 16*60*60*1000);
-        var start_time_24 = new Date(start_time.getTime() + 24*60*60*1000);
-        var insertParam = [ 1, 'SHFT', start_time, null, null, null, null, 'SHIFT #1'];
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            if(err) throw err
-            console.log('SHIFT INSERT OK');
-        });        
-        var insertParam = [ 2, 'SHFE', start_time_8, null, null, null, null, 'SHIFT #1'];
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            if(err) throw err
-            console.log('SHIFT INSERT OK');
-        });
-        var insertParam = [ 3, 'SHFT', start_time_8, null, null, null, null, 'SHIFT #2'];
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            if(err) throw err
-            console.log('SHIFT INSERT OK');
-        });        
-        var insertParam = [ 4, 'SHFE', start_time_16, null, null, null, null, 'SHIFT #2'];
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            if(err) throw err
-            console.log('SHIFT INSERT OK');
-        });        
-        var insertParam = [ 5, 'SHFT', start_time_16, null, null, null, null, 'SHIFT #3'];
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            if(err) throw err
-            console.log('SHIFT INSERT OK');
-        });        
-        var insertParam = [ 6, 'SHFE', start_time_24, null, null, null, null, 'SHIFT #3'];
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            if(err) throw err
-            console.log('SHIFT INSERT OK');
-        });      
-
-        return 6;
-    }
-
-    function findNextEqp(lots, lot_id, dispatch_in_time) {
-        var next_eqp_id;
-        for(var i=0; i<lots.length; i++) {
-            var row = lots[i];
-            if(row.dispatch_in_time > dispatch_in_time && row.lot_id == lot_id) {
-                next_eqp_id = row.eqp_id;
-                break;
-            }
-        }
-        return next_eqp_id;
-    }
-
+    
 })
+
+

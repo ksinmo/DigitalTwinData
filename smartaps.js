@@ -367,14 +367,25 @@ io.on('connection', function (socket) {
                             }                
                         }
                     } else { // 조립, 변형이 된 경우
-                        row.from_lot_ids.split(',').forEach(function(lot_id, idx, array) {
-                            var tran_lot_id = lot_id;
+                        from_lot.forEach(function(wiprow, idx, array) {
+                            var tran_lot_id = wiprow.fr_lot_id;
                             if(row.dispatch_in_time != null) {
-                                var prev_plan = findPrevPlan(plan, lot_id, row.dispatch_in_time, row.start_time);
-                                if(prev_plan !== null && false) { //lot split
-                                    //create new lot in wq of prev eqp
-                                    //tran new lot to row
-                                    tran_lot_id = 0;
+                                var prev_plan = findPrevPlan(plan, wiprow.fr_lot_id, row.dispatch_in_time, row.start_time);
+                                if(wiprow.fr_unit_qty < lotsCreated[wiprow.fr_lot_id]) {//가져와야 하는 것이 남은것보다 작으므로 lot split. 임시 lot 생성 
+                                    lotsCreated[wiprow.fr_lot_id] -= wiprow.fr_unit_qty;
+                                    tran_lot_id = wiprow.fr_lot_id + 'S';
+                                    orders.push( { 
+                                        version_no: version_no,
+                                        orderid: orderId, 
+                                        ordertype: 'CREA', 
+                                        ordertime: row.dispatch_in_time ? row.dispatch_in_time : row.start_time,
+                                        beforeorderid: null, 
+                                        objid: prev_plan.eqp_id, 
+                                        targetobjid1: tran_lot_id, 
+                                        targetobjid2: wiprow.fr_product_id, 
+                                        parameter: null
+                                    });
+                                    orderId++;
                                 }
                                 if(prev_plan !== null) {
                                     orders.push( { 

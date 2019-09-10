@@ -3,8 +3,6 @@ var socket = require('socket.io-client')('http://localhost:8071');
 //var socket = require('socket.io-client')('http://portal.tobeway.com:1814');
 //var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
 //var socket = require('socket.io-client')('ws://127.0.0.1:999/socket.io/?EIO=4&transport=websocket');
-//const redis = require('redis');
-//var redisClient = redis.createClient(6379, 'mdmcloud.tobeway.com');
 
 var socketSaps = require('socket.io-client')('http://localhost:8072');
 //var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
@@ -21,12 +19,18 @@ socket.on('connect', function(){
     // alertjson: JSON.parse('[{"objid":"EQP07","objname":"EQP07","STATE":"Busy","COUNT":6,"ELAPSED":"337510400000"},{"objid":"EQP07","objname":"EQP07","STATE":"Lazy","COUNT":1,"ELAPSED":"288358400000"},{"objid":"EQP06","objname":"EQP06","STATE":"Busy","COUNT":6,"ELAPSED":"411238400000"},{"objid":"EQP06","objname":"EQP06","STATE":"Lazy","COUNT":1,"ELAPSED":"262144000000"},{"objid":"EQP17","objname":"EQP17","STATE":"Busy","COUNT":1,"ELAPSED":"18022400000"},{"objid":"EQP21","objname":"EQP21","STATE":"Busy","COUNT":2,"ELAPSED":"36044800000"},{"objid":"EQP23","objname":"EQP23","STATE":"Lazy","COUNT":1,"ELAPSED":"1638400000"},{"objid":"EQP26","objname":"EQP26","STATE":"Lazy","COUNT":1,"ELAPSED":"19660800000"},{"objid":"EQP25","objname":"EQP25","STATE":"Lazy","COUNT":1,"ELAPSED":"675020800000"},{"objid":"EQP01","objname":"EQP01","STATE":"Lazy","COUNT":1,"ELAPSED":"352256000000"},{"objid":"DOCK","objname":"Final Storage","STATE":"Full","COUNT":1,"ELAPSED":"306380800000"},{"objid":"EQP02","objname":"EQP02","STATE":"Lazy","COUNT":1,"ELAPSED":"288358400000"},{"objid":"EQP03","objname":"EQP03","STATE":"Lazy","COUNT":1,"ELAPSED":"262144000000"}]'),
     // alertdetailjson: JSON.parse('[{"ID":"1","EqpID":"EQP07","EqpName":"","State":"Busy","StartTime":"637027642290772731","ElapsedTime":"4915199889"},{"ID":"1","EqpID":"EQP06","EqpName":"","State":"Busy","StartTime":"637027647205972620","ElapsedTime":"57343998705"},{"ID":"2","EqpID":"EQP07","EqpName":"","State":"Busy","StartTime":"637027704549971325","ElapsedTime":"32767999260"},{"ID":"2","EqpID":"EQP06","EqpName":"","State":"Busy","StartTime":"637027732402770696","ElapsedTime":"62259198594"},{"ID":"3","EqpID":"EQP07","EqpName":"","State":"Busy","StartTime":"637027737317970585","ElapsedTime":"90111997965"},{"ID":"3","EqpID":"EQP06","EqpName":"","State":"Busy","StartTime":"637027794661969290","ElapsedTime":"90111997965"},{"ID":"1","EqpID":"EQP17","EqpName":"","State":"Busy","StartTime":"637027974885965220","ElapsedTime":"18022399593"},{"ID":"1","EqpID":"EQP21","EqpName":"","State":"Busy","StartTime":"637027974885965220","ElapsedTime":"18022399593"},{"ID":"4","EqpID":"EQP07","EqpName":"","State":"Busy","StartTime":"637028889113144574","ElapsedTime":"57343998705"},{"ID":"4","EqpID":"EQP06","EqpName":"","State":"Busy","StartTime":"637028946457143279","ElapsedTime":"27852799371"},{"ID":"5","EqpID":"EQP07","EqpName":"","State":"Busy","StartTime":"637028974309942650","ElapsedTime":"62259198594"},{"ID":"5","EqpID":"EQP06","EqpName":"","State":"Busy","StartTime":"637028979225142539","ElapsedTime":"85196798076"},{"ID":"6","EqpID":"EQP07","EqpName":"","State":"Busy","StartTime":"637029036569141244","ElapsedTime":"90111997965"},{"ID":"6","EqpID":"EQP06","EqpName":"","State":"Busy","StartTime":"637029064421940615","ElapsedTime":"88473598002"},{"ID":"1","EqpID":"EQP23","EqpName":"","State":"Lazy","StartTime":"637029703397926185","ElapsedTime":"18022399593"},{"ID":"2","EqpID":"EQP21","EqpName":"","State":"Busy","StartTime":"637029703397926185","ElapsedTime":"18022399593"},{"ID":"1","EqpID":"EQP26","EqpName":"","State":"Lazy","StartTime":"637029793509924150","ElapsedTime":"18022399593"},{"ID":"1","EqpID":"EQP25","EqpName":"","State":"Lazy","StartTime":"637029796786724076","ElapsedTime":"673382384793"},{"ID":"1","EqpID":"EQP01","EqpName":"","State":"Lazy","StartTime":"637030414463510127","ElapsedTime":"0"},{"ID":"1","EqpID":"DOCK","EqpName":"Final Storage","State":"Full","StartTime":"637030458700309128","ElapsedTime":"0"},{"ID":"1","EqpID":"EQP02","EqpName":"","State":"Lazy","StartTime":"637030478361108684","ElapsedTime":"0"},{"ID":"1","EqpID":"EQP07","EqpName":"","State":"Lazy","StartTime":"637030478361108684","ElapsedTime":"0"},{"ID":"1","EqpID":"EQP03","EqpName":"","State":"Lazy","StartTime":"637030504575508092","ElapsedTime":"0"},{"ID":"1","EqpID":"EQP06","EqpName":"","State":"Lazy","StartTime":"637030504575508092","ElapsedTime":"0"}]')
     // });
-    socket.emit('SetObjPropVal', {applid: 'SAPS', objid:'EQP02', classid:'E201010', propid: 'PRESET', propval: 'PRESET07'});
-    //socket.emit('DeleteResult', {applid:'49'});
+    //socket.emit('SetObjPropVal', {applid: 'SAPS', objid:'EQP02', classid:'E201010', propid: 'PRESET', propval: 'PRESET07'});
+    //socket.emit('GetClassDetail', {classid:'PROD01'});
+    //socket.emit('GetObject', {applid:'SAPS', objid:'EQP23'});
+    //socket.emit('GetPropValue', {propid:'PRESET'});
+    //socket.emit('StartMonitoringData', {applid: 'SAPS'});
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
-socket.on("ResultGetClassProp", function (data) {
+socket.on("ResultGetObject", function (data) {
+    console.log(util.inspect(data, {showHidden: false, depth: null}));
+});
+socket.on("ResultGetStatus", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 
@@ -34,15 +38,15 @@ socket.on("ResultGetClassProp", function (data) {
 socketSaps.on('connect', function(){
     var data = { 
         eqp_id: 'EQP01',
-        rows: [
-            {product_id:'PROD01_01', process_id:'PROC01_01', step_id: 'STEP01'},
-            {product_id:'PROD01_02', process_id:'PROC01_03', step_id: 'STEP01'} 
-        ]
+        rows: null//[
+            //{product_id:'PROD01_01', process_id:'PROC01_01', step_id: 'STEP01'},
+            //{product_id:'PROD01_02', process_id:'PROC01_03', step_id: 'STEP01'} 
+        //]
     }
     //socketSaps.emit('GetVersion');
     //socketSaps.emit('UpdateEqpArrange', data);
     //socketSaps.emit('GetProduct', {eqp_id: 'EQP01'});
-    //socketSaps.emit('GetOrder', {version_no: 'TSK-20190828-174438'});
+    socketSaps.emit('GetOrder', {version_no: 'TSK-20190910-125102'});
     //socketSaps.emit('UpdateEquipmentPreset', {eqp_id: 'EQP01', preset_id: 'PRESET03'});
 });
 socketSaps.on('event', function(data){});

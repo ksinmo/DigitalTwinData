@@ -67,6 +67,10 @@ io.on('connection', function (socket) {
             .input("eqp_id", sql.VarChar(30), data.eqp_id)
             .query(q)
         }).then( () => {
+            if(!data.rows) {
+                sql.close();
+                return;
+            }
             var q = 'INSERT INTO dbo.EQP_ARRANGE '
                 + '(PRODUCT_ID, PROCESS_ID, STEP_ID, EQP_ID, TACT_TIME, PROC_TIME, EFF_START_DATE, EFF_END_DATE) '
                 + ' VALUES(@product_id, @process_id, @step_id, @eqp_id, 300, 300, \'\', \'\') ';
@@ -108,12 +112,15 @@ io.on('connection', function (socket) {
     socket.on("GetOrder", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         if(data === null || data === undefined) return;
 
-        var lastEqp;
-        GetLastEqp().then(function(lastEqp1) {
-            lastEqp = lastEqp1;
+        var lastEqp, release;
+        GetLastEqp().then(function(_lastEqp) {
+            lastEqp = _lastEqp;
             return GetReleaseHistory(data.version_no);
-        }).then(function(release) {
-            return GetOrderFromEqpPlan(data.version_no, release, lastEqp);
+        }).then(function(_release) {
+            release = _release;
+            return GetMergeWipLog(data.version_no);
+        }).then(function(mergeWip) {
+            return GetOrderFromEqpPlan(data.version_no, lastEqp, release, mergeWip);
         }).then(function(orders) {
             // orders.forEach(function(row, idx, array) {
             //     console.log(row)
@@ -146,7 +153,7 @@ io.on('connection', function (socket) {
     //------------------------------Order Generation from VMS------------------------------------ 
     function GetLastEqp() {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT PRODUCT_ID, PROCESS_ID, STEP_ID, eqp_id, TACT_TIME, PROC_TIME, EFF_START_DATE, EFF_END_DATE "
+            var q = "SELECT product_id, process_id, step_id, eqp_id, tact_time, proc_time, eff_start_date, eff_end_date "
                 + "FROM dbo.EQP_ARRANGE "
                 + "WHERE STEP_ID in "
                 + "(SELECT TOP 1 STEP_ID "
@@ -176,7 +183,6 @@ io.on('connection', function (socket) {
             var q = "SELECT batch_id, lot_id ,product_id, release_date, input_step_id, qty "
                 + "FROM [dbo].[RELEASE_HISTORY] "
                 + "WHERE version_no = @version_no ";
-                //+ "WHERE version_no = '" + version_no + "'";
             connectPool.then((pool) => {
                 return pool.request()
                 .input("version_no", sql.VarChar(30), version_no)
@@ -191,7 +197,26 @@ io.on('connection', function (socket) {
             });
         });
     }
-    function GetOrderFromEqpPlan(version_no, release, lastEqp) {
+    function GetMergeWipLog(version_no) {
+        return new Promise(function(resolve, reject) {
+            var q = "SELECT version_no, fr_lot_id, to_lot_id, fr_product_id, to_product_id, oper_id, fr_unit_qty, to_unit_qty " 
+                + "FROM dbo.MERGE_WIPLOG "
+                + "WHERE version_no = @version_no ";
+            connectPool.then((pool) => {
+                return pool.request()
+                .input("version_no", sql.VarChar(30), version_no)
+                .query(q)
+            }).then( ({recordset}) => {
+                resolve(recordset)
+                sql.close();
+            }).catch(err => {
+                sql.close();
+                reject(err); 
+                return;  
+            });
+        });
+    }
+    function GetOrderFromEqpPlan(version_no, lastEqp, release, mergeWip) {
         return new Promise(function(resolve, reject) {
             var FIRST_EQP = 'DBANK';
             var orders = [];
@@ -234,6 +259,7 @@ io.on('connection', function (socket) {
                 });
                 recordset.forEach(function(row, idx, array) {
                     var eqpid = row.eqp_id;
+                    var from_lot = findMergeWip(mergeWip, row.lot_id);
                     if(row.machine_state === "BREAK") {
                         //조립과 관계 없는 Break order부터 처리. 
                         orders.push( { 
@@ -260,7 +286,7 @@ io.on('connection', function (socket) {
                             parameter: null
                         }); 
                         orderId++;
-                    } else if(row.from_lot_ids === null || row.from_lot_ids.length <= 0 ) {
+                    } else if(from_lot.length === 0 ) {
                         //조립 변형이 안된 경우
                         //lot이 없으면 생성
                         if(!lotsCreated[row.lot_id]) {
@@ -455,5 +481,13 @@ io.on('connection', function (socket) {
         return prev_plan;
     }
 
+    function findMergeWip(mergeWip, lot_id) {
+        var result = []
+        mergeWip.forEach(function(row){
+            if(row.to_lot_id === lot_id) 
+                result.push(row.fr_lot_id);
+        });
+        return result;
+    }
 
 })

@@ -148,7 +148,7 @@ io.on('connection', function (socket) {
             selectQuery += ' ORDER BY O.dispseq;';
 
         var selectQuery2 =
-            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, P.ismonitor '
+            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, P.ismonitor, P.proptype '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE applid = $1  '
@@ -175,6 +175,22 @@ io.on('connection', function (socket) {
             });
         });
     });    
+
+    socket.on("GetPropValue", function (prop) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
+        var selectParam;
+        if(!isnull(prop)) selectParam = [prop.propid];
+
+        var selectQuery = ' SELECT propid, enumid, value_en, value_ko, active, isdefault, dispseq '
+            + 'FROM cockpit.propvalue '
+            + 'WHERE active = \'Y\' AND propid = $1 '
+            + 'ORDER BY dispseq, enumid '
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetPropValue", res);    //받은 오브젝트 정보를 던짐
+
+        });
+    });
     //---------------------------------save Event-------------------------------
     //Object 테이블에 받은 정보를 insert 함
     socket.on("ObjectTableInsert", function (data) {
@@ -302,10 +318,8 @@ io.on('connection', function (socket) {
     });
 
     socket.on("GetClass", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
-
         console.log("On GetClass");
-        if(isnull(data)) return;
-        
+        if(isnull(data)) return;        
         var selectQuery = '';
         var selectParam = '';
         //CATE인 경우만 appl을 적용합니다.
@@ -334,7 +348,44 @@ io.on('connection', function (socket) {
 
         });   
     });   
-    
+    socket.on("GetClassDetail", function (data) {     
+        if(isnull(data)) return;
+        var selectParam = [data.classid];
+        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf '
+            + 'FROM cockpit.class '
+            + 'WHERE classid = $1 '
+        pgpool.query(q, selectParam, (err, res) => {
+            if (errlog(err)) return;
+
+            var selectQuery = 'SELECT classid, C.propid, defpropval, P.propname_en propname, C.dispseq '
+            + 'FROM cockpit.classprop C '
+            + 'LEFT OUTER JOIN cockpit.prop P ON C.propid = P.propid '
+            + 'WHERE classid = $1 '
+            + 'ORDER BY dispseq ';
+        
+            pgpool.query(selectQuery, selectParam, (err, res2) => {
+                if (errlog(err)) return;
+                res.rows[0].prop = res2.rows;
+                socket.emit("ResultGetClassDetail", res); 
+
+            });
+        });
+    });    
+    socket.on("GetClassProp", function (data) {     
+        if(isnull(data)) return;
+        var selectParam = [data.classid];
+        var selectQuery = 'SELECT classid, C.propid, defpropval, P.propname_en propname, C.dispseq '
+            + 'FROM cockpit.classprop C '
+            + 'LEFT OUTER JOIN cockpit.prop P ON C.propid = P.propid '
+            + 'WHERE classid = $1 '
+            + 'ORDER BY dispseq ';
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetClassProp", res); 
+
+        });
+    });
     socket.on("GetOrg", function (data) {     
         console.log("On GetOrg");
         if(isnull(data)) return;
@@ -437,20 +488,64 @@ io.on('connection', function (socket) {
         redisPub = redis.createClient(6379, 'mdmcloud.tobeway.com');
         // PUBLISH ObjectStatus EQP01:OPERATING:Y
         
-        timerId = setInterval(function() {
-            var eqp = 'EQP0' + Math.floor((Math.random() * 9) + 1);
-            var processingWIP = Math.floor((Math.random() * 3));
-            var message = eqp + ':OPERATING:';
-            message += (processingWIP > 0) ? 'Y' : 'N';
-            //console.log(message);
-            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
-            message = eqp + ':PROCESSINGWIP:' + processingWIP;
-            //console.log(message);
-            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
-            message = eqp + ':DQWIP:' + Math.floor((Math.random() * 10) );
-            //console.log(message);
-            redisPub.publish(OBJECT_STATUS_CHANNEL, message);
-        }, data.interval)
+        var q = "SELECT objid FROM cockpit.object WHERE applid = $1 and objid like 'EQP%'";
+        var products = [];
+        if(data.applid === 'SAPS')
+            products = ['PROD01', 'PROD01_01', 'PROD01_02', 'PROD01_03', 'PROD01_04', 'PROD01_05', 'PROD01_06']
+        else
+            products = ['P1010', 'P1020', 'P1030'];
+        var creaMessage = []
+        products.forEach(function(row){
+            for(var i=0; i<30; i++) {
+                creaMessage.push({
+                    orderType: 'CREA',
+                    targetobjid1: row + '-' + i,
+                    targetobjid2: row
+                });
+            }
+        })
+        redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(creaMessage));
+        var order = ['TRAN','PROC', 'ENDT'];
+        var param = [data.applid];
+        pgpool.query(q, param, (err, res) => {
+            if(err) {console.log(err); return;}            
+            timerId = setInterval(function() {
+                var message = [];
+                var arrProductIndex = [];
+                products.forEach(function(row){
+                    arrProductIndex.push(0)
+                });
+
+                for(let i=0; i<30 + Math.random() * 20; i++) {
+                    var eqpid = res.rows[Math.floor((Math.random() * res.rows.length))].objid;
+                    var productIndex = Math.floor((Math.random() * products.length));
+
+                    arrProductIndex[productIndex] ++;
+                    var product = products[productIndex];
+                    message.push({
+                        orderType: order[Math.floor(Math.random() * 3)],
+                        objid: eqpid, 
+                        targetobjid1: product + '-' + arrProductIndex[productIndex]
+                    });
+                }
+                redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
+                //console.log(JSON.stringify(message))
+
+                // var processingWIP = Math.floor((Math.random() * 3));
+                // var message = eqp + ':OPERATING:';
+                // message += (processingWIP > 0) ? 'Y' : 'N';
+                // console.log(message);
+                // redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+                // message = eqp + ':PROCESSINGWIP:' + processingWIP;
+                // console.log(message);
+                // redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+                // message = eqp + ':DQWIP:' + Math.floor((Math.random() * 10) );
+                // console.log(message);
+                //redisPub.publish(OBJECT_STATUS_CHANNEL, message);
+
+                //전체를 하나의 메시지로 publish하자. 새로 그리는 컨셉으로...
+            }, data.interval)
+        });
     });
     socket.on("StopMonitoringData", function (data) {
         clearInterval(timerId);
@@ -461,12 +556,16 @@ io.on('connection', function (socket) {
     redisClient.on("message", function(channel, message) {
         if(channel != OBJECT_STATUS_CHANNEL) return;
 
-        var result = {command: 'SELECT', rowCount: 1, oid: null, rows: []};
-        var keysplit = message.split(':');
-        if(keysplit.length == 3) {
-            result.rows.push({objid:keysplit[0], propid:keysplit[1], propval:keysplit[2]});
-            socket.emit("ResultGetStatus", result); 
-        }
+        //console.log(JSON.parse(message))
+        var result = {command: 'SELECT', oid: null};
+        result.rows = JSON.parse(message);
+        result.rowCount = result.rows.length;
+        socket.emit("ResultGetStatus", result); 
+        // var keysplit = message.split(':');
+        // if(keysplit.length == 3) {
+        //     result.rows.push({objid:keysplit[0], propid:keysplit[1], propval:keysplit[2]});
+        //     socket.emit("ResultGetStatus", result); 
+        // }
     });   
     redisClient.subscribe(OBJECT_STATUS_CHANNEL);
 
@@ -571,17 +670,24 @@ io.on('connection', function (socket) {
     socket.on("InsertResult", function (data) {
         console.log("InsertResult");
         if(isnull(data)) return;
-        var insertParam =  [data.usrid, data.applid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
-            JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
-        var insertQuery =
-            'INSERT INTO cockpit.result( '
-            + 'usrid, applid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
-            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9 ) ';
-
-        pgpool.query(insertQuery, insertParam, (err, res) => {
-            console.log(res);
-            if (errlog(err)) 
-                console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
+        pgpool.query("select nextval('resultid_sequence') resultid", (err, res) => {
+            var resultid = null
+            if(res.rows.lenght > 0) resultid = res.rows[0].resultid;
+            var insertParam =  [resultid, data.usrid, data.applid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
+                JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
+            var insertQuery =
+                'INSERT INTO cockpit.result( '
+                + 'resultid, usrid, applid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
+                + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) ';
+    
+            pgpool.query(insertQuery, insertParam, (err, res) => {
+                console.log(res);
+                if (errlog(err)) 
+                    console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
+            });
+            data.alertdetailjson.forEach(function(row) {
+                console.log(row)
+            });
         });
     });
 
@@ -612,21 +718,7 @@ io.on('connection', function (socket) {
 
         });
     });
-    socket.on("GetClassProp", function (data) {     
-        if(isnull(data)) return;
-        var selectParam = [data.classid];
-        var selectQuery = 'SELECT classid, C.propid, defpropval, P.propname_en propname, C.dispseq '
-            + 'FROM cockpit.classprop C '
-            + 'LEFT OUTER JOIN cockpit.prop P ON C.propid = P.propid '
-            + 'WHERE classid = $1 '
-            + 'ORDER BY dispseq ';
-        
-        pgpool.query(selectQuery, selectParam, (err, res) => {
-            if (errlog(err)) return;
-            socket.emit("ResultGetClassProp", res); 
 
-        });
-    });
     //yyyy-MM-dd hh:mm:ss
     function getUTCFormat(timestamp) {
         var dateFormat = timestamp.getUTCFullYear() + '-' + String(timestamp.getUTCMonth() + 1).padStart(2, '0') + '-' + String(timestamp.getUTCDate()).padStart(2, '0');

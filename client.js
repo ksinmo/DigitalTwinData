@@ -24,6 +24,9 @@ socket.on('connect', function(){
     //socket.emit('GetObject', {applid:'SAPS', objid:'EQP23'});
     //socket.emit('GetPropValue', {propid:'PRESET'});
     //socket.emit('StartMonitoringData', {applid: 'SAPS'});
+
+
+    socket.emit('StopMonitoringData');
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});

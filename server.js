@@ -517,7 +517,9 @@ io.on('connection', function (socket) {
                 });
 
                 for(let i=0; i<30 + Math.random() * 20; i++) {
-                    var eqpid = res.rows[Math.floor((Math.random() * res.rows.length))].objid;
+                    var rn = Math.floor((Math.random() * res.rows.length));
+                    console.log(rn)
+                    var eqpid = res.rows[rn].objid;
                     var productIndex = Math.floor((Math.random() * products.length));
 
                     arrProductIndex[productIndex] ++;

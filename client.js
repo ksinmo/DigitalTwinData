@@ -1,8 +1,6 @@
 const util = require('util')
-var socket = require('socket.io-client')('http://localhost:8071');
-//var socket = require('socket.io-client')('http://portal.tobeway.com:1814');
-//var socket = require('socket.io-client')('http://mdmcloud.tobeway.com:8071');
-//var socket = require('socket.io-client')('ws://127.0.0.1:999/socket.io/?EIO=4&transport=websocket');
+//var socket = require('socket.io-client')('http://localhost:8071');
+var socket = require('socket.io-client')('http://portal.tobeway.com:1814');
 
 var socketSaps = require('socket.io-client')('http://localhost:8072');
 //var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
@@ -23,7 +21,7 @@ socket.on('connect', function(){
     //socket.emit('GetClassDetail', {classid:'PROD01'});
     //socket.emit('GetObject', {applid:'SAPS', objid:'EQP23'});
     //socket.emit('GetPropValue', {propid:'PRESET'});
-    //socket.emit('StartMonitoringData', {applid: 'SAPS'});
+    socket.emit('StartMonitoringData', {applid: 'SAPS', interval: 500});
 
 
     socket.emit('StopMonitoringData');
@@ -49,7 +47,7 @@ socketSaps.on('connect', function(){
     //socketSaps.emit('GetVersion');
     //socketSaps.emit('UpdateEqpArrange', data);
     //socketSaps.emit('GetProduct', {eqp_id: 'EQP01'});
-    socketSaps.emit('GetOrder', {version_no: 'TSK-20190910-125102'});
+    //socketSaps.emit('GetOrder', {version_no: 'TSK-20190910-125102'});
     //socketSaps.emit('UpdateEquipmentPreset', {eqp_id: 'EQP01', preset_id: 'PRESET03'});
 });
 socketSaps.on('event', function(data){});

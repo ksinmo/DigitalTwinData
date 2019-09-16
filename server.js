@@ -488,49 +488,49 @@ io.on('connection', function (socket) {
         redisPub = redis.createClient(6379, 'mdmcloud.tobeway.com');
         // PUBLISH ObjectStatus EQP01:OPERATING:Y
         
-        var q = "SELECT objid FROM cockpit.object WHERE applid = $1 and objid like 'EQP%'";
+        var q = "SELECT objid FROM cockpit.object WHERE applid = $1 and objid like 'EQP%' ORDER BY objid";
         var products = [];
         if(data.applid === 'SAPS')
             products = ['PROD01', 'PROD01_01', 'PROD01_02', 'PROD01_03', 'PROD01_04', 'PROD01_05', 'PROD01_06']
         else
             products = ['P1010', 'P1020', 'P1030'];
-        var creaMessage = []
-        products.forEach(function(row){
-            for(var i=0; i<30; i++) {
-                creaMessage.push({
-                    orderType: 'CREA',
-                    targetobjid1: row + '-' + i,
-                    targetobjid2: row
-                });
-            }
-        })
-        redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(creaMessage));
+
         var order = ['TRAN','PROC', 'ENDT'];
         var param = [data.applid];
         pgpool.query(q, param, (err, res) => {
             if(err) {console.log(err); return;}            
             timerId = setInterval(function() {
-                var message = [];
-                var arrProductIndex = [];
-                products.forEach(function(row){
-                    arrProductIndex.push(0)
-                });
+                var rn = Math.floor((Math.random() * res.rows.length));
+                var eqpid = res.rows[rn].objid;
+                var message = {
+                    objid: eqpid,
+                    dq: [],
+                    proc: [],
+                    wq: [],
+                    lazy: false
+                };
 
-                for(let i=0; i<30 + Math.random() * 20; i++) {
-                    var rn = Math.floor((Math.random() * res.rows.length));
-                    console.log(rn)
-                    var eqpid = res.rows[rn].objid;
-                    var productIndex = Math.floor((Math.random() * products.length));
-
-                    arrProductIndex[productIndex] ++;
-                    var product = products[productIndex];
-                    message.push({
-                        orderType: order[Math.floor(Math.random() * 3)],
-                        objid: eqpid, 
-                        targetobjid1: product + '-' + arrProductIndex[productIndex]
-                    });
+                message.lazy = Math.random() > 0.8 ? true : false;
+                var productIndex;
+                for(var i=0; i<Math.floor((Math.random() * 5)); i++) {
+                    productIndex = Math.floor((Math.random() * products.length));
+                    message.dq.push(products[productIndex]);
                 }
-                redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
+                for(var i=0; !message.lazy && i<Math.floor((Math.random() * 4)); i++) {
+                    productIndex = Math.floor((Math.random() * products.length));
+                    message.proc.push(products[productIndex]);
+                }
+                for(var i=0; i<Math.floor((Math.random() * 5)); i++) {
+                    productIndex = Math.floor((Math.random() * products.length));
+                    message.wq.push(products[productIndex]);
+                }
+                console.log("-------" + eqpid + "------")
+                console.log(message)
+
+                // redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
+
+
+
                 //console.log(JSON.stringify(message))
 
                 // var processingWIP = Math.floor((Math.random() * 3));

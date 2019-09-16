@@ -136,8 +136,8 @@ io.on('connection', function (socket) {
                 else
                     return a.ordertime.valueOf() < b.ordertime.valueOf() ? -1: 1
             });
-            console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            orders.forEach(function(row, idx, array) {
+            //console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            //orders.forEach(function(row, idx, array) {
             //     if(row.targetobjid1 === 'LOT_PROD01_01_3'
             //     || row.targetobjid1 === 'LOT_PROD01_02_2'
             //     || row.targetobjid1 === 'LOT_PROD01_05_1'
@@ -145,8 +145,8 @@ io.on('connection', function (socket) {
             //     || row.targetobjid1 === 'LOT_PROD01_04_3'
             //     || row.targetobjid1 === 'LOT_PROD01_06_1'
             //     || row.targetobjid1 === 'LOT_PROD01_1' )
-                 console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
-            });
+            //    console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
+            //});
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
         }).catch(function (err) {
@@ -258,6 +258,7 @@ io.on('connection', function (socket) {
     function GetOrderFromEqpPlan(lastEqp, release, mergeWip, eqpPlan) {
         return new Promise(function(resolve, reject) {
             var FIRST_EQP = 'DBANK';
+            var LAST_EQP = 'DOCK';
             var orders = [];
             var plan = [];
             var lotsCreated = {};
@@ -273,24 +274,19 @@ io.on('connection', function (socket) {
             });               
             //plan 합침
             eqpPlan.forEach(function(row, idx, array) {
-                if(row.machine_state !== "SETUP") 
+                if(row.machine_state === "SETUP") { //Setup은 처리하지 않는다.
+                } else if(row.machine_state === "BREAK" ) {
+                    orders.push(makeOrder('BRKS', row.start_time, row.eqp_id));
+                    orders.push(makeOrder('BRKE', row.end_time, row.eqp_id));
+                } else {
                     plan.push(row);
+                }
             });
             eqpPlan.forEach(function(row, idx, array) {
                 var eqpid = row.eqp_id;
                 var from_lot = findMergeWip(mergeWip, row.lot_id, row.step_id);
-                if(row.machine_state === "BREAK") {
-                    //조립과 관계 없는 Break order부터 처리. 
-                    orders.push(makeOrder('BRKS', row.start_time, row.eqp_id));
-                    orders.push(makeOrder('BRKE', row.end_time, row.eqp_id));
-                } else if(row.machine_state === "SETUP") {
-                //     //Setup은 처리하지 않는다.
-                //     //lot이 없으면 생성
-                //     if(!lotsCreated[row.lot_id]) {
-                //         orders.push(makeOrder('CREA', row.dispatch_in_time ? row.dispatch_in_time : row.start_time,
-                //             row.eqp_id, row.lot_id, row.product_id));
-                //         lotsCreated[row.lot_id] = row.process_qty;
-                //    }
+                if(row.machine_state === "SETUP" || row.machine_state === "BREAK") {
+
                 } else if(from_lot.length === 0 ) {
                     //조립 변형이 안된 경우
                     //lot이 없으면 생성
@@ -316,7 +312,7 @@ io.on('connection', function (socket) {
                     if(row.end_time != null) {
                         orders.push( makeOrder('ENDT', row.end_time, eqpid, row.lot_id));
                         if(lastEqp.includes(eqpid)) {
-                            orders.push( makeOrder('TRAN', row.end_time, eqpid, row.lot_id, "DOCK"));
+                            orders.push( makeOrder('TRAN', row.end_time, eqpid, row.lot_id, LAST_EQP));
                         }                
                     }
                 } else { // 조립, 변형이 된 경우
@@ -353,7 +349,7 @@ io.on('connection', function (socket) {
                                 lotsCreated[row.lot_id] = row.process_qty;
                             }
                             if(lastEqp.includes(eqpid)) {
-                                orders.push(makeOrder('TRAN', row.end_time,  eqpid, row.lot_id, "DOCK"));
+                                orders.push(makeOrder('TRAN', row.end_time,  eqpid, row.lot_id, LAST_EQP));
                             }
                         }
                     });

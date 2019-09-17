@@ -323,15 +323,31 @@ io.on('connection', function (socket) {
         var selectQuery = '';
         var selectParam = '';
         //CATE인 경우만 appl을 적용합니다.
-        if(data.parentclassid == 'ROOT') {
+        if(!data.parentclassid) {
+            selectQuery = "WITH recursive class_list (parentclassid, classid, depth, path, cycle) AS " + 
+                "( " + 
+                "SELECT parentclassid, C.classid, 1 AS depth, array[C.classid::text] AS path, false AS cycle " + 
+                "FROM   cockpit.class C " + 
+                "LEFT OUTER JOIN cockpit.applclass AC ON C.classid = AC.classid " + 
+                "WHERE AC.applid = $1 " + 
+                "UNION ALL " + 
+                "SELECT C.parentclassid, C.classid, P.depth + 1 AS depth, array_append(P.path, C.classid::text), (C.classid = ANY(P.path)) AS cycle " + 
+                "FROM   cockpit.class C " + 
+                "INNER JOIN class_list P ON P.classid = C.parentclassid " + 
+                "WHERE      NOT cycle " + 
+                ") " + 
+                "SELECT CL.classid, classname_en, classname_ko, CL.parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf " + 
+                "FROM class_list CL " + 
+                "left outer join cockpit.\"class\" C on CL.classid = C.classid; ";
+            selectParam = [data.applid];
+        } else if(data.parentclassid === 'ROOT') {
             selectQuery = ' SELECT C.classid, classname_en, classname_ko, parentclassid, AC.dispseq, classtype, active, createdat, description, z_iconpath, isleaf ' +
                 ' FROM cockpit.class C ' +
                 ' LEFT OUTER JOIN cockpit.applclass AC ON C.classid = AC.classid ' +
                 ' WHERE AC.applid = $1 and C.parentclassid = $2 ' +
-            '    order by AC.dispseq '
+                ' ORDER BY AC.dispseq '
             selectParam = [data.applid, data.parentclassid];
-        }
-        else {
+            } else {
             selectQuery = ' SELECT C.classid, classname_en, classname_ko, parentclassid, C.dispseq, classtype, active, createdat, description, z_iconpath, isleaf ' +
                 ' FROM cockpit.class C ' +
                 ' LEFT OUTER JOIN cockpit.applclass AC ON C.classid = AC.classid ' +
@@ -343,7 +359,7 @@ io.on('connection', function (socket) {
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
 
-            socket.emit("ResultClass", res);    //받은 오브젝트 정보를 던짐
+            socket.emit("ResultGetClass", res);    //받은 오브젝트 정보를 던짐
             //console.log("send ResultClass : " + util.inspect(res, {showHidden: false, depth: null}));
 
         });   
@@ -495,7 +511,6 @@ io.on('connection', function (socket) {
         else
             products = ['P1010', 'P1020', 'P1030'];
 
-        var order = ['TRAN','PROC', 'ENDT'];
         var param = [data.applid];
         pgpool.query(q, param, (err, res) => {
             if(err) {console.log(err); return;}            
@@ -524,8 +539,6 @@ io.on('connection', function (socket) {
                     productIndex = Math.floor((Math.random() * products.length));
                     message.wq.push(products[productIndex]);
                 }
-                console.log("-------" + eqpid + "------")
-                console.log(message)
 
                 // redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
 
@@ -668,30 +681,115 @@ io.on('connection', function (socket) {
             socket.emit("ResultGetResultDetail", res); 
         });
     });
-
-    socket.on("InsertResult", function (data) {
-        console.log("InsertResult");
+    socket.on("GetSnapshot", function (data) {
+        console.log("GetSnapshot");
         if(isnull(data)) return;
-        pgpool.query("select nextval('resultid_sequence') resultid", (err, res) => {
-            var resultid = null
-            if(res.rows.lenght > 0) resultid = res.rows[0].resultid;
-            var insertParam =  [resultid, data.usrid, data.applid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
-                JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
-            var insertQuery =
-                'INSERT INTO cockpit.result( '
-                + 'resultid, usrid, applid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
-                + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) ';
-    
-            pgpool.query(insertQuery, insertParam, (err, res) => {
-                console.log(res);
-                if (errlog(err)) 
-                    console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
-            });
-            data.alertdetailjson.forEach(function(row) {
-                console.log(row)
-            });
+        var selectParam =  [data.resultid];
+        var selectQuery = "SELECT resultid, snapshotid, updatedat "
+            + "FROM cockpit.snapshot "
+            + "WHERE resultid = $1";
+
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetSnapshot", res); 
         });
     });
+
+    socket.on("GetSnapshotwip", function (data) {
+        console.log("GetSnapshotwip");
+        if(isnull(data)) return;
+        var selectParam =  [data.resultid, data.snapshotid];
+        var selectQuery = "SELECT resultid, snapshotid, objid, dq, proc, wq "
+            + "FROM cockpit.snapshotwip "
+            + "WHERE resultid = $1 AND snapshotid = $2"
+
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetSnapshotwip", res); 
+        });
+    });
+    socket.on("InsertResult", function (data) {
+        console.log("InsertResult")
+        if(isnull(data)) return;
+        if(data.resultid) {
+            insertResult(data)
+        } else {
+            pgpool.query("select nextval('resultid_sequence') resultid", (err, res) => {
+                if(res.rows.length > 0) data.resultid = res.rows[0].resultid;
+                insertResult(data)
+            });
+        }
+    });
+    function insertResult(data) {
+        var insertParam =  [data.resultid, data.usrid, data.applid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
+            JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
+        var insertQuery =
+            'INSERT INTO cockpit.result( '
+            + 'resultid, usrid, applid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
+            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) ';
+
+        pgpool.query(insertQuery, insertParam, (err, res) => {
+            if (errlog(err)) 
+                console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
+        });
+        if(!data.wipjson) return;
+        data.wipjson.forEach(function(row) {
+            var q = "INSERT INTO cockpit.resultwip "
+                + "(resultid, objid, dq, proc, wq) "
+                + "VALUES($1, $2, $3, $4, $5) ";
+            var params =  [data.resultid, row.objid, row.DQ, row.PROC, row.WQ];
+            pgpool.query(q, params, (err, res) => {
+                if (errlog(err)) 
+                    console.log('InsertResult wipjson error: ' + data.resultid + ',' + row.objid); 
+            });
+        });
+        if(!data.performancejson) return;
+        data.performancejson.forEach(function(row) {
+            // var q = "INSERT INTO cockpit.resultperformance "
+            //     + "(resultid, objid, dq, proc, wq) "
+            //     + "VALUES($1, $2, $3, $4, $5) ";
+            // var params =  [data.resultid, row.objid, row.DQ, row.PROC, row.WQ];
+            // pgpool.query(q, params, (err, res) => {
+            //     if (errlog(err)) 
+            //         console.log('InsertResult resultperformance error: ' + data.resultid + ',' + row.objid); 
+            // });
+        });
+        if(!data.alertdetailjson) return;
+        data.alertdetailjson.forEach(function(row) {
+            var q = "INSERT INTO cockpit.resultalert "
+                + "(resultid, objid, state, seq, starttime, elapsed) "
+                + "VALUES($1, $2, $3, $4, $5, $6) ";
+            var params =  [data.resultid, row.EqpID, row.State, row.ID, getUTCFormat(new Date()), 0];
+            pgpool.query(q, params, (err, res) => {
+                if (errlog(err)) 
+                    console.log('InsertResult alertdetail error: ' + data.resultid + ',' + row.EqpID); 
+            });
+        });
+        if(!data.snapshotjson) return;
+        data.snapshotjson.forEach(function(snapshot, idx) {
+            var q = "INSERT INTO cockpit.snapshot "
+                + "(resultid, snapshotid, updatedat) "
+                + "VALUES($1, $2, $3) ";
+            var params =  [data.resultid, idx, getUTCFormat(new Date(snapshot.updatedat))];
+            pgpool.query(q, params, (err, res) => {
+                if (errlog(err)) {
+                    console.log('InsertResult snapshotjson error: ' + data.resultid); 
+                    return;
+                }
+                snapshot.rows.forEach(function(row) {
+                    var q2 = "INSERT INTO cockpit.snapshotwip "
+                        + "(resultid, snapshotid, objid, dq, proc, wq) "
+                        + "VALUES($1, $2, $3, $4, $5, $6) ";
+                    var params =  [data.resultid, idx, row.objid, row.DQ, row.PROC, row.WQ];
+                    pgpool.query(q2, params, (err, res) => {
+                        if (errlog(err)) 
+                            console.log('InsertResult snapshotjson error: ' + data.resultid); 
+                    });            
+                });
+            });
+        });
+        socket.emit("ResultInsertResult", {"resultid": data.resultid});
+    }
 
     socket.on("DeleteResult", function (data) {
         console.log("DeleteResult");

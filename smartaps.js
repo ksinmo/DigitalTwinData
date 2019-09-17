@@ -114,18 +114,15 @@ io.on('connection', function (socket) {
         if(data === null || data === undefined) return;
         version_no = data.version_no;
 
-        var lastEqp, release, mergeWip;
-        GetLastEqp().then(function(_lastEqp) {
-            lastEqp = _lastEqp;
-            return GetReleaseHistory(data.version_no);
-        }).then(function(_release) {
+        var release, mergeWip;
+        GetReleaseHistory(data.version_no).then(function(_release) {
             release = _release;
             return GetMergeWipLog(data.version_no);
         }).then(function(_mergeWip) {
             mergeWip = _mergeWip;
             return GetEqpPlan(data.version_no);
         }).then(function(eqpPlan) {
-            return GetOrderFromEqpPlan(lastEqp, release, mergeWip, eqpPlan);
+            return GetOrderFromEqpPlan(release, mergeWip, eqpPlan);
         }).then(function(orders) {
             // orders.forEach(function(row, idx, array) {
             //     console.log(row)
@@ -223,7 +220,7 @@ io.on('connection', function (socket) {
     }
     function GetEqpPlan(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state, from_lot_ids "
+            var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state "
                 + "FROM dbo.EQP_PLAN "
                 + "WHERE version_no = @version_no "
                 + "ORDER BY dispatch_in_time, start_time ";
@@ -255,7 +252,7 @@ io.on('connection', function (socket) {
             "parameter": parameter
         }; 
     }
-    function GetOrderFromEqpPlan(lastEqp, release, mergeWip, eqpPlan) {
+    function GetOrderFromEqpPlan(release, mergeWip, eqpPlan) {
         return new Promise(function(resolve, reject) {
             var FIRST_EQP = 'DBANK';
             var LAST_EQP = 'DOCK';
@@ -311,9 +308,9 @@ io.on('connection', function (socket) {
                     
                     if(row.end_time != null) {
                         orders.push( makeOrder('ENDT', row.end_time, eqpid, row.lot_id));
-                        if(lastEqp.includes(eqpid)) {
-                            orders.push( makeOrder('TRAN', row.end_time, eqpid, row.lot_id, LAST_EQP));
-                        }                
+                        //if(lastEqp.includes(eqpid)) {
+                        //    orders.push( makeOrder('TRAN', row.end_time, eqpid, row.lot_id, LAST_EQP));
+                        //}                
                     }
                 } else { // 조립, 변형이 된 경우
                     from_lot.forEach(function(wiprow, idx, array) {
@@ -348,9 +345,9 @@ io.on('connection', function (socket) {
                             if(!lotsCreated[row.lot_id]) {
                                 lotsCreated[row.lot_id] = row.process_qty;
                             }
-                            if(lastEqp.includes(eqpid)) {
-                                orders.push(makeOrder('TRAN', row.end_time,  eqpid, row.lot_id, LAST_EQP));
-                            }
+                            //if(lastEqp.includes(eqpid)) {
+                            //    orders.push(makeOrder('TRAN', row.end_time,  eqpid, row.lot_id, LAST_EQP));
+                            //}
                         }
                     });
                 }                    

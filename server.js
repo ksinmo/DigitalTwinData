@@ -501,6 +501,7 @@ io.on('connection', function (socket) {
     //------------------------------모니터링------------------------------------
     //------------------------------Monitoring Test Data 생성 ----------------------------
     socket.on("StartMonitoringData", function (data) {
+        console.log("StartMonitoringData")
         redisPub = redis.createClient(6379, 'mdmcloud.tobeway.com');
         // PUBLISH ObjectStatus EQP01:OPERATING:Y
         
@@ -516,6 +517,7 @@ io.on('connection', function (socket) {
             if(err) {console.log(err); return;}            
             timerId = setInterval(function() {
                 var rn = Math.floor((Math.random() * res.rows.length));
+                console.log("rn=" + rn + ", length=" + res.rows.length)
                 var eqpid = res.rows[rn].objid;
                 var message = {
                     objid: eqpid,
@@ -540,7 +542,7 @@ io.on('connection', function (socket) {
                     message.wq.push(products[productIndex]);
                 }
 
-                // redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
+                redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
 
 
 
@@ -576,6 +578,7 @@ io.on('connection', function (socket) {
         result.rows = JSON.parse(message);
         result.rowCount = result.rows.length;
         socket.emit("ResultGetStatus", result); 
+        console.log(result)
         // var keysplit = message.split(':');
         // if(keysplit.length == 3) {
         //     result.rows.push({objid:keysplit[0], propid:keysplit[1], propval:keysplit[2]});
@@ -778,9 +781,9 @@ io.on('connection', function (socket) {
                 }
                 snapshot.rows.forEach(function(row) {
                     var q2 = "INSERT INTO cockpit.snapshotwip "
-                        + "(resultid, snapshotid, objid, dq, proc, wq) "
-                        + "VALUES($1, $2, $3, $4, $5, $6) ";
-                    var params =  [data.resultid, idx, row.objid, row.DQ, row.PROC, row.WQ];
+                        + "(resultid, snapshotid, objid, part, targetobjid1) "
+                        + "VALUES($1, $2, $3, $4, $5) ";
+                    var params =  [data.resultid, idx, row.objid, row.part, row.targetobjid1];
                     pgpool.query(q2, params, (err, res) => {
                         if (errlog(err)) 
                             console.log('InsertResult snapshotjson error: ' + data.resultid); 

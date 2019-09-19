@@ -508,7 +508,7 @@ io.on('connection', function (socket) {
         var q = "SELECT objid FROM cockpit.object WHERE applid = $1 and objid like 'EQP%' ORDER BY objid";
         var products = [];
         if(data.applid === 'SAPS')
-            products = ['PROD01', 'PROD01_01', 'PROD01_02', 'PROD01_03', 'PROD01_04', 'PROD01_05', 'PROD01_06']
+            products = ['PROD01_01', 'PROD01_02', 'PROD01_03', 'PROD01_04', 'PROD01_05', 'PROD01_06']
         else
             products = ['P1010', 'P1020', 'P1030'];
 
@@ -517,7 +517,6 @@ io.on('connection', function (socket) {
             if(err) {console.log(err); return;}            
             timerId = setInterval(function() {
                 var rn = Math.floor((Math.random() * res.rows.length));
-                console.log("rn=" + rn + ", length=" + res.rows.length)
                 var eqpid = res.rows[rn].objid;
                 var message = {
                     objid: eqpid,
@@ -534,17 +533,18 @@ io.on('connection', function (socket) {
                     message.dq.push(products[productIndex]);
                 }
                 for(var i=0; !message.lazy && i<Math.floor((Math.random() * 4)); i++) {
-                    productIndex = Math.floor((Math.random() * products.length));
-                    message.proc.push(products[productIndex]);
+                    if(!["EQP01", "EQP02", "EQP03", "EQP04", "EQP05"].includes(eqpid) || i<1) {
+                        productIndex = Math.floor((Math.random() * products.length));
+                        message.proc.push(products[productIndex]);
+                    }
                 }
                 for(var i=0; i<Math.floor((Math.random() * 5)); i++) {
                     productIndex = Math.floor((Math.random() * products.length));
                     message.wq.push(products[productIndex]);
                 }
 
-                redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
-
-
+                if(redisPub !== undefined && redisPub !== null && redisPub.connected)
+                    redisPub.publish(OBJECT_STATUS_CHANNEL, JSON.stringify(message));
 
                 //console.log(JSON.stringify(message))
 
@@ -565,8 +565,13 @@ io.on('connection', function (socket) {
         });
     });
     socket.on("StopMonitoringData", function (data) {
+        console.log("StopMonitoringData")
         clearInterval(timerId);
-        if(redisPub !== undefined && redisPub !== null ) redisPub.quit();
+
+        if(redisPub !== undefined && redisPub !== null ) {
+            redisPub.end(true);
+            redisPub.quit();
+        }
     });
     // pub/sub
     // PUBLISH ObjectStatus EQP01:OPERATING:Y
@@ -578,7 +583,6 @@ io.on('connection', function (socket) {
         result.rows = JSON.parse(message);
         result.rowCount = result.rows.length;
         socket.emit("ResultGetStatus", result); 
-        console.log(result)
         // var keysplit = message.split(':');
         // if(keysplit.length == 3) {
         //     result.rows.push({objid:keysplit[0], propid:keysplit[1], propval:keysplit[2]});
@@ -702,9 +706,9 @@ io.on('connection', function (socket) {
         console.log("GetSnapshotwip");
         if(isnull(data)) return;
         var selectParam =  [data.resultid, data.snapshotid];
-        var selectQuery = "SELECT resultid, snapshotid, objid, dq, proc, wq "
+        var selectQuery = "SELECT resultid, snapshotid, objid, part, targetobjid1 "
             + "FROM cockpit.snapshotwip "
-            + "WHERE resultid = $1 AND snapshotid = $2"
+            + "WHERE resultid = $1 AND snapshotid = $2 "
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;

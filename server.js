@@ -127,7 +127,7 @@ io.on('connection', function (socket) {
     socket.on("GetObject", function (prop) {
         console.log("GetObject");
         var selectParam;
-        if(!isnull(prop))  selectParam = [prop.applid];
+        if(!isnull(prop))  selectParam = [prop.applid, prop.siteid];
 
         var selectQuery =
             'SELECT O.objid, O.classid, objname_en objname, C.classname_en classname,'
@@ -136,14 +136,15 @@ io.on('connection', function (socket) {
             + ' scalex, scaley, scalez, '
             + ' speed , O.description, C.classtype, '
             + ' ORG.orgid, ORG.orgname_en orgname, '
-            + ' ctrl1, ctrl2 '
+            + ' ctrl1, ctrl2, siteid '
             + ' FROM cockpit.object O '
             + ' LEFT OUTER JOIN cockpit.class C ON O.classid = C.classid '
             + ' LEFT OUTER JOIN cockpit.org ON O.orgid = ORG.orgid '
-            + ' WHERE applid = $1 ';
+            + ' WHERE applid = $1 '
+            + '   AND siteid = $2 ';
             if(!isnull(prop) && !isnull(prop.objid)) {
                 selectParam.push(prop.objid);
-                selectQuery += ' AND objid = $2 ';
+                selectQuery += ' AND objid = $3 ';
             }
             selectQuery += ' ORDER BY O.dispseq;';
 
@@ -151,8 +152,8 @@ io.on('connection', function (socket) {
             'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, P.ismonitor, P.proptype '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
-            + 'WHERE applid = $1  '
-            + 'AND objid = $2 '
+            + 'WHERE applid = $1 '
+            + '  AND objid = $2 '
             + 'ORDER BY P.dispseq ';
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
@@ -204,13 +205,13 @@ io.on('connection', function (socket) {
             'INSERT INTO cockpit.object(  objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
             //+ ' CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, Description)'
-            + 'description, active, applid, ctrl1, ctrl2) '
+            + 'description, active, applid, ctrl1, ctrl2, siteid) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15, $16, $17 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15, $16, $17, $18 )';
 
-        var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1';//다 지우고
+        var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1 AND siteid = $2';//다 지우고
         //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
-        pgpool.query(objectDeleteQuery, [data.rows[0]["applid"]], (err, res) => {
+        pgpool.query(objectDeleteQuery, [data.rows[0]["applid"], data.rows[0]["siteid"]], (err, res) => {
             if (errlog(err)) return;
 
             data.rows.forEach(function(row) {
@@ -222,7 +223,7 @@ io.on('connection', function (socket) {
                         row["rotationx"], row["rotationy"], row["rotationz"],
                         row["scalex"], row["scaley"], row["scalez"], row["speed"],
                         //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
-                        row["description"], row["applid"], row["ctrl1"], row["ctrl2"]
+                        row["description"], row["applid"], row["ctrl1"], row["ctrl2"], row["siteid"]
                     ];
                 
                 pgpool.query(insertQuery, insertParam, (err, res) => {
@@ -498,6 +499,22 @@ io.on('connection', function (socket) {
         });
     });
 
+    socket.on("GetSite", function (data) {     
+        console.log("On GetSite");
+        if(isnull(data)) return;
+        var selectParam =  [data.applid];
+
+        var selectQuery = 'SELECT siteid, applid, sitename_en, sitename_ko, mapfilename, dispseq '
+            + 'FROM cockpit.site '
+            + 'WHERE applid = $1'
+            + 'ORDER BY dispseq ';
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetSite", res); 
+
+        });
+    });    
     //------------------------------모니터링------------------------------------
     //------------------------------Monitoring Test Data 생성 ----------------------------
     socket.on("StartMonitoringData", function (data) {
@@ -660,11 +677,11 @@ io.on('connection', function (socket) {
             + 'FROM cockpit.result '
             + 'WHERE usrid = $1 '
             + '  AND applid = $2 '
-            + 'ORDER BY updateat ';
+            + 'ORDER BY updateat DESC ';
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
-            //console.log("send ResultGetResult : " + util.inspect(res, {showHidden: false, depth: null}));
+            //console.log(res.rows[0]);
             socket.emit("ResultGetResult", res); 
         });
     });
@@ -752,14 +769,18 @@ io.on('connection', function (socket) {
         });
         if(!data.performancejson) return;
         data.performancejson.forEach(function(row) {
-            // var q = "INSERT INTO cockpit.resultperformance "
-            //     + "(resultid, objid, dq, proc, wq) "
-            //     + "VALUES($1, $2, $3, $4, $5) ";
-            // var params =  [data.resultid, row.objid, row.DQ, row.PROC, row.WQ];
-            // pgpool.query(q, params, (err, res) => {
-            //     if (errlog(err)) 
-            //         console.log('InsertResult resultperformance error: ' + data.resultid + ',' + row.objid); 
-            // });
+            for(var key in row) {
+                if(key !== "objname" && key !== "objid") {
+                    var q = "INSERT INTO cockpit.resultperformance "
+                        + "(resultid, objid, targetobjid, qty) "
+                        + "VALUES($1, $2, $3, $4) ";
+                    var params =  [data.resultid, row.objid, key, row[key]];
+                    pgpool.query(q, params, (err, res) => {
+                        if (errlog(err)) 
+                            console.log('InsertResult resultperformance error: ' + data.resultid + ',' + row.objid); 
+                    });
+                }
+            }
         });
         if(!data.alertdetailjson) return;
         data.alertdetailjson.forEach(function(row) {
@@ -841,7 +862,7 @@ io.on('connection', function (socket) {
         else {
             return false;
         }
-    };
+    }
     function isnull(data) {
         if(data == undefined || data == null) {
             console.log('data is null.');

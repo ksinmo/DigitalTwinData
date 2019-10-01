@@ -1,4 +1,5 @@
 var io = require('socket.io')(8072);
+var edge = require('edge'); //nodejs 7.10.1과 호환됨.
 const util = require('util');
 var sql = require('mssql');
 var config = {
@@ -18,7 +19,25 @@ const connectPool = new sql.ConnectionPool(config).connect();
 // const connectPool = new sql.ConnectionPool(config, err => {
 //     console.log(err)
 // }).connect();
- 
+
+var clrMethod = edge.func({
+    assemblyFile: 'Mozart.DataActions.dll',
+    typeName: 'Samples.FooBar.MyType',
+    methodName: 'MyMethod' // This must be Func<object,Task<object>>
+});
+var hello = edge.func(function () {/*
+    async (input) => { 
+        string folderDir = @"C:\Users\김신모\Downloads\ReadData API\Result 0";
+        Mozart.DataActions.LocalFileStorage lfs = new Mozart.DataActions.LocalFileStorage(folderDir);
+        return "CSharp welcomes " + input.ToString(); 
+    }
+*/});
+
+hello('Node.js', function (error, result) {
+    if (error) throw error;
+    console.log(result);
+});
+
 io.on('connection', function (socket) {
     var version_no, order_id=1;
     console.log('1. connected')
@@ -127,14 +146,24 @@ io.on('connection', function (socket) {
             // orders.forEach(function(row, idx, array) {
             //     console.log(row)
             // });    
+            //시간순으로 정렬
             orders.sort(function(a,b) {
                 if( a.ordertime.valueOf() === b.ordertime.valueOf() )
                     return a.orderid < b.orderid ? -1: 1
                 else
                     return a.ordertime.valueOf() < b.ordertime.valueOf() ? -1: 1
             });
-            //console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            //orders.forEach(function(row, idx, array) {
+            //마지막 BREAK는 삭제.
+            var done=false;
+            for(var i=orders.length-1; i>=0 && !done; i--) {
+                if(orders[i].ordertype === 'BRKS' || orders[i].ordertype === 'BRKE') {
+                    orders.pop();
+                } else {
+                    done = true;
+                }
+            }
+            console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            orders.forEach(function(row, idx, array) {
             //     if(row.targetobjid1 === 'LOT_PROD01_01_3'
             //     || row.targetobjid1 === 'LOT_PROD01_02_2'
             //     || row.targetobjid1 === 'LOT_PROD01_05_1'
@@ -142,8 +171,8 @@ io.on('connection', function (socket) {
             //     || row.targetobjid1 === 'LOT_PROD01_04_3'
             //     || row.targetobjid1 === 'LOT_PROD01_06_1'
             //     || row.targetobjid1 === 'LOT_PROD01_1' )
-            //    console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
-            //});
+                console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
+            });
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
         }).catch(function (err) {

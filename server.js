@@ -215,7 +215,7 @@ io.on('connection', function (socket) {
             if (errlog(err)) return;
 
             data.rows.forEach(function(row) {
-                //console.log(util.inspect(row["prop"], {showHidden: false, depth: null}));  
+                console.log(row["objid"])
                 var insertParam =
                     [
                         row["objid"], row["classid"], row["objname"],
@@ -238,13 +238,14 @@ io.on('connection', function (socket) {
     });
 
     function objPropValInsert(applid, objid, classid, prop) {
+        //console.log(applid + "," + objid)
         var insertQuery = 'INSERT INTO cockpit.objpropval(applid, objid, classid, propid, propval) VALUES ($1, $2, $3, $4, $5);';
         var propids = [];
 
         if(!isnull(prop)) {
             prop.forEach(function(row) {
                 //console.log(util.inspect(row, {showHidden: false, depth: null}));  
-                var insertParam = [applid, row["objid"], row["classid"], row["propid"], row["propval"]];
+                var insertParam = [applid, objid, row["classid"], row["propid"], row["propval"]];
                 propids.push(row["propid"]);
                 pgpool.query(insertQuery, insertParam, (err, res) => {
                     if (errlog(err)) return;
@@ -381,10 +382,9 @@ io.on('connection', function (socket) {
             + 'ORDER BY dispseq ';
         
             pgpool.query(selectQuery, selectParam, (err, res2) => {
-                if (errlog(err)) return;
+                if (errlog(err) || res.rows.length <= 0) return;
                 res.rows[0].prop = res2.rows;
                 socket.emit("ResultGetClassDetail", res); 
-
             });
         });
     });    
@@ -428,7 +428,7 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam =  [data.usrid];
 
-        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq, hidewq '
+        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq, hidewq, productclassid '
             + 'FROM cockpit.usr U '
             + 'LEFT OUTER JOIN cockpit.usrrole UR ON U.usrid = UR.usrid '
             + 'LEFT OUTER JOIN cockpit.rolepermit RP ON UR.roleid = RP.roleid '
@@ -787,7 +787,7 @@ io.on('connection', function (socket) {
             var q = "INSERT INTO cockpit.resultalert "
                 + "(resultid, objid, state, seq, starttime, elapsed) "
                 + "VALUES($1, $2, $3, $4, $5, $6) ";
-            var params =  [data.resultid, row.EqpID, row.State, row.ID, getUTCFormat(new Date()), 0];
+            var params =  [data.resultid, row.EqpID, row.State, row.Seq, getUTCFormat(new Date(row.StartTime)), row.ElapsedTime];
             pgpool.query(q, params, (err, res) => {
                 if (errlog(err)) 
                     console.log('InsertResult alertdetail error: ' + data.resultid + ',' + row.EqpID); 

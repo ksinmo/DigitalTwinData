@@ -1,6 +1,5 @@
 var io = require('socket.io')(8072);
-var edge = require('edge'); //nodejs 7.10.1과 호환됨.
-const util = require('util');
+var request = require('request')
 var sql = require('mssql');
 var config = {
     user: 'sa',
@@ -16,27 +15,6 @@ var config = {
 }
 console.log('0. created')
 const connectPool = new sql.ConnectionPool(config).connect();
-// const connectPool = new sql.ConnectionPool(config, err => {
-//     console.log(err)
-// }).connect();
-
-var clrMethod = edge.func({
-    assemblyFile: 'Mozart.DataActions.dll',
-    typeName: 'Samples.FooBar.MyType',
-    methodName: 'MyMethod' // This must be Func<object,Task<object>>
-});
-var hello = edge.func(function () {/*
-    async (input) => { 
-        string folderDir = @"C:\Users\김신모\Downloads\ReadData API\Result 0";
-        Mozart.DataActions.LocalFileStorage lfs = new Mozart.DataActions.LocalFileStorage(folderDir);
-        return "CSharp welcomes " + input.ToString(); 
-    }
-*/});
-
-hello('Node.js', function (error, result) {
-    if (error) throw error;
-    console.log(result);
-});
 
 io.on('connection', function (socket) {
     var version_no, order_id=1;
@@ -162,8 +140,8 @@ io.on('connection', function (socket) {
                     done = true;
                 }
             }
-            console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            orders.forEach(function(row, idx, array) {
+            //console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            //orders.forEach(function(row, idx, array) {
             //     if(row.targetobjid1 === 'LOT_PROD01_01_3'
             //     || row.targetobjid1 === 'LOT_PROD01_02_2'
             //     || row.targetobjid1 === 'LOT_PROD01_05_1'
@@ -171,8 +149,8 @@ io.on('connection', function (socket) {
             //     || row.targetobjid1 === 'LOT_PROD01_04_3'
             //     || row.targetobjid1 === 'LOT_PROD01_06_1'
             //     || row.targetobjid1 === 'LOT_PROD01_1' )
-                console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
-            });
+            //    console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
+            //});
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
         }).catch(function (err) {
@@ -211,60 +189,105 @@ io.on('connection', function (socket) {
     }
     function GetReleaseHistory(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT batch_id, lot_id ,product_id, release_date, input_step_id, qty "
-                + "FROM [dbo].[RELEASE_HISTORY] "
-                + "WHERE version_no = @version_no ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .input("version_no", sql.VarChar(30), version_no)
-                .query(q)
-            }).then( ({recordset}) => {
-                resolve(recordset)
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
+            request("http://localhost:60064/api/ReleaseHistory?version_no=TSK-20190930-113452", function(error, response,body) {
+                if(error) {
+                    reject(error);
+                    return;
+                }
+                // JSON.parse(body).forEach(function(row) {
+                //    console.log(row.lot_id + "," + row.product_id + "," + row.release_date)
+                // });
+
+                resolve(JSON.parse(body));
             });
+            // var q = "SELECT batch_id, lot_id ,product_id, release_date, input_step_id, qty "
+            //     + "FROM [dbo].[RELEASE_HISTORY] "
+            //     + "WHERE version_no = @version_no ";
+            // connectPool.then((pool) => {
+            //     return pool.request()
+            //     .input("version_no", sql.VarChar(30), version_no)
+            //     .query(q)
+            // }).then( ({recordset}) => {
+            //     resolve(recordset)
+            //     sql.close();
+            // }).catch(err => {
+            //     sql.close();
+            //     reject(err); 
+            //     return;  
+            // });
         });
     }
     function GetMergeWipLog(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT version_no, fr_lot_id, to_lot_id, fr_product_id, to_product_id, oper_id, fr_unit_qty, to_unit_qty " 
-                + "FROM dbo.MERGE_WIPLOG "
-                + "WHERE version_no = @version_no ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .input("version_no", sql.VarChar(30), version_no)
-                .query(q)
-            }).then( ({recordset}) => {
-                resolve(recordset)
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
+            request("http://localhost:60064/api/MergeWiplog?version_no=TSK-20190930-113452", function(error, response,body) {
+                if(error) {
+                    reject(error);
+                    return;
+                }
+                // JSON.parse(body).forEach(function(row) {
+                //    console.log(row.fr_lot_id + "," + row.to_lot_id + "," + row.oper_id)
+                // });
+
+
+                resolve(JSON.parse(body));
             });
+
+
+            // var q = "SELECT version_no, fr_lot_id, to_lot_id, fr_product_id, to_product_id, oper_id, fr_unit_qty, to_unit_qty " 
+            //     + "FROM dbo.MERGE_WIPLOG "
+            //     + "WHERE version_no = @version_no ";
+            // connectPool.then((pool) => {
+            //     return pool.request()
+            //     .input("version_no", sql.VarChar(30), version_no)
+            //     .query(q)
+            // }).then( ({recordset}) => {
+            //     resolve(recordset)
+            //     sql.close();
+            // }).catch(err => {
+            //     sql.close();
+            //     reject(err); 
+            //     return;  
+            // });
         });
     }
     function GetEqpPlan(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state "
-                + "FROM dbo.EQP_PLAN "
-                + "WHERE version_no = @version_no "
-                + "ORDER BY dispatch_in_time, start_time ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .input("version_no", sql.VarChar(30), version_no)
-                .query(q)
-            }).then( ({recordset}) => {
-                resolve(recordset)
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
+            request("http://localhost:60064/api/EqpPlan?version_no=TSK-20190930-113452", function(error, response,body) {
+                if(error) {
+                    reject(error);
+                    return;
+                }
+                var eqpPlan = JSON.parse(body);
+                //시간순으로 정렬
+                eqpPlan.sort(function(a,b) {
+                    if( a.dispatch_in_time.valueOf() === b.dispatch_in_time.valueOf() )
+                        return a.start_time.valueOf() < b.start_time.valueOf() ? -1: 1
+                    else
+                        return a.dispatch_in_time.valueOf() < b.dispatch_in_time.valueOf() ? -1: 1
+                });
+                // eqpPlan.forEach(function(row) {
+                //     console.log(row.eqp_id + "," + row.lot_id + "," + row.product_id+ "," + row.dispatch_in_time + "," + row.start_time)
+                // });
+
+                resolve(eqpPlan);
             });
+
+            // var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state "
+            //     + "FROM dbo.EQP_PLAN "
+            //     + "WHERE version_no = @version_no "
+            //     + "ORDER BY dispatch_in_time, start_time ";
+            // connectPool.then((pool) => {
+            //     return pool.request()
+            //     .input("version_no", sql.VarChar(30), version_no)
+            //     .query(q)
+            // }).then( ({recordset}) => {
+            //     resolve(recordset)
+            //     sql.close();
+            // }).catch(err => {
+            //     sql.close();
+            //     reject(err); 
+            //     return;  
+            // });
         });
     }
 
@@ -384,10 +407,6 @@ io.on('connection', function (socket) {
             console.log(orders.length)
             resolve(orders);
             sql.close();
-        }).catch(err => {
-            sql.close();
-            reject(err); 
-            return;  
         });
     }
 

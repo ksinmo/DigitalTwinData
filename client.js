@@ -63,7 +63,7 @@ socket.on('connect', function(){
     //socket.emit('StartMonitoringData', {applid: 'SAPS', interval: 500});
     //socket.emit('GetClass', {applid: 'SAPS', parentclassid: null});
     //socket.emit('GetSnapshotwip', {resultid: 326, snapshotid: 1});
-    socket.emit('GetClassDetail', {classid: 'PS0122'});
+    //socket.emit('GetClassDetail', {classid: 'PS0122'});
     //socket.emit('StopMonitoringData');
 });
 socket.on('event', function(data){});
@@ -87,7 +87,7 @@ socketSaps.on('connect', function(){
     //socketSaps.emit('GetVersion');
     //socketSaps.emit('UpdateEqpArrange', data);
     //socketSaps.emit('GetProduct', {eqp_id: 'EQP01'});
-    //socketSaps.emit('GetOrder', {version_no: 'TSK-20190916-120731'});
+    socketSaps.emit('GetOrder', {version_no: 'TSK-20190916-120731'});
     //socketSaps.emit('UpdateEquipmentPreset', {eqp_id: 'EQP01', preset_id: 'PRESET03'});
 });
 socketSaps.on('event', function(data){});

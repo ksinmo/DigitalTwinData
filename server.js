@@ -136,7 +136,7 @@ io.on('connection', function (socket) {
             + ' scalex, scaley, scalez, '
             + ' speed , O.description, C.classtype, '
             + ' ORG.orgid, ORG.orgname_en orgname, '
-            + ' ctrl1, ctrl2, siteid '
+            + ' ctrl1, ctrl2, siteid, imageid '
             + ' FROM cockpit.object O '
             + ' LEFT OUTER JOIN cockpit.class C ON O.classid = C.classid '
             + ' LEFT OUTER JOIN cockpit.org ON O.orgid = ORG.orgid '
@@ -205,9 +205,9 @@ io.on('connection', function (socket) {
             'INSERT INTO cockpit.object(  objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
             //+ ' CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, Description)'
-            + 'description, active, applid, ctrl1, ctrl2, siteid) '
+            + 'description, active, applid, ctrl1, ctrl2, siteid, imageid) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15, $16, $17, $18 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15, $16, $17, $18, $19 )';
 
         var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1 AND siteid = $2';//다 지우고
         //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
@@ -369,7 +369,7 @@ io.on('connection', function (socket) {
     socket.on("GetClassDetail", function (data) {     
         if(isnull(data)) return;
         var selectParam = [data.classid];
-        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf '
+        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf, classcode, isgeneral, imageid  '
             + 'FROM cockpit.class '
             + 'WHERE classid = $1 '
         pgpool.query(q, selectParam, (err, res) => {
@@ -428,7 +428,7 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam =  [data.usrid];
 
-        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq, hidewq, productclassid '
+        var selectQuery = 'SELECT U.usrid, name_en "name", serverurl, permittype, permittoid, applid, applname_en applname, dispseq, hidewq '
             + 'FROM cockpit.usr U '
             + 'LEFT OUTER JOIN cockpit.usrrole UR ON U.usrid = UR.usrid '
             + 'LEFT OUTER JOIN cockpit.rolepermit RP ON UR.roleid = RP.roleid '
@@ -846,7 +846,42 @@ io.on('connection', function (socket) {
 
         });
     });
+    socket.on("GetServer", function (data) {     
+        console.log("On GetServer");
+        if(isnull(data)) return;
+        var selectParam = [data.applid];
 
+        var selectQuery = 'SELECT applid, serverid, servername_en, servername_ko, serverurl '
+            + 'FROM cockpit.server '
+            + 'WHERE applid = $1 '
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetServer", res); 
+
+        });
+    });
+    socket.on("GetProduct", function (data) {     
+        console.log("On GetServer");
+        if(isnull(data)) return;
+        var selectParam = [data.applid];
+
+        var selectQuery = 'SELECT classid, classname_en, classname_ko, parentclassid, classcode, dispseq, classtype, active, createdat, description, z_iconpath, isleaf '
+            + 'FROM cockpit.class '
+            + 'where parentclassid in ( '
+            + '    SELECT C.classid '
+            + '    FROM cockpit.class C '
+            + '    inner join cockpit.applclass AC on C.classid = AC.classid and AC.applid = $1 '
+            + '    where classcode = \'PRODUCT\' '
+            + ') '
+            + 'order by dispseq ';
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetProduct", res); 
+
+        });
+    });
     //yyyy-MM-dd hh:mm:ss
     function getUTCFormat(timestamp) {
         var dateFormat = timestamp.getUTCFullYear() + '-' + String(timestamp.getUTCMonth() + 1).padStart(2, '0') + '-' + String(timestamp.getUTCDate()).padStart(2, '0');

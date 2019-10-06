@@ -65,13 +65,14 @@ socket.on('connect', function(){
     //socket.emit('GetSnapshotwip', {resultid: 326, snapshotid: 1});
     //socket.emit('GetClassDetail', {classid: 'PS0122'});
     //socket.emit('StopMonitoringData');
+    socket.emit('GetProduct', {applid: 'SAPS'});
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 socket.on("ResultGetClassDetail", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
-socket.on("ResultGetSite", function (data) {
+socket.on("ResultGetProduct", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

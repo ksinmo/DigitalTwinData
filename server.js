@@ -369,7 +369,7 @@ io.on('connection', function (socket) {
     socket.on("GetClassDetail", function (data) {     
         if(isnull(data)) return;
         var selectParam = [data.classid];
-        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf, classcode, isgeneral, imageid  '
+        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf, classcode, imageid  '
             + 'FROM cockpit.class '
             + 'WHERE classid = $1 '
         pgpool.query(q, selectParam, (err, res) => {
@@ -851,9 +851,10 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam = [data.applid];
 
-        var selectQuery = 'SELECT applid, serverid, servername_en, servername_ko, serverurl '
+        var selectQuery = 'SELECT applid, serverid, servername_en, servername_ko, serverurl, dispseq '
             + 'FROM cockpit.server '
             + 'WHERE applid = $1 '
+            + 'ORDER BY dispseq '
         
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
@@ -879,6 +880,22 @@ io.on('connection', function (socket) {
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
             socket.emit("ResultGetProduct", res); 
+
+        });
+    });
+    socket.on("GetClassImage", function (data) {     
+        console.log("On GetClassImage");
+        if(isnull(data)) return;
+        var selectParam = [data.classid];
+
+        var selectQuery = 'SELECT classid, imageid, imagename_en, imagename_ko, imagepath, dispseq '
+            + 'FROM cockpit.classimage '
+            + 'WHERE classid = $1 '
+            + 'order by dispseq ';
+        
+        pgpool.query(selectQuery, selectParam, (err, res) => {
+            if (errlog(err)) return;
+            socket.emit("ResultGetClassImage", res); 
 
         });
     });

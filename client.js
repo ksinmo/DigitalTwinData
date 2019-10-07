@@ -1,6 +1,6 @@
 const util = require('util')
-var socket = require('socket.io-client')('http://localhost:8071');
-//var socket = require('socket.io-client')('http://portal.tobeway.com:1814');
+//var socket = require('socket.io-client')('http://localhost:8071');
+var socket = require('socket.io-client')('http://portal.tobeway.com:1814');
 
 var socketSaps = require('socket.io-client')('http://localhost:8072');
 //var socketSaps = require('socket.io-client')('http://portal.tobeway.com:1813'); //1813 -> 8072
@@ -65,14 +65,14 @@ socket.on('connect', function(){
     //socket.emit('GetSnapshotwip', {resultid: 326, snapshotid: 1});
     //socket.emit('GetClassDetail', {classid: 'PS0122'});
     //socket.emit('StopMonitoringData');
-    socket.emit('GetProduct', {applid: 'SAPS'});
+    socket.emit('GetObject', {applid: 'SAPS', siteid:'SWTECH'});
 });
 socket.on('event', function(data){});
 socket.on('disconnect', function(){});
 socket.on("ResultGetClassDetail", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
-socket.on("ResultGetProduct", function (data) {
+socket.on("ResultGetAllObject", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

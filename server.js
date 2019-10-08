@@ -149,18 +149,19 @@ io.on('connection', function (socket) {
             selectQuery += ' ORDER BY O.dispseq;';
 
         var selectQuery2 =
-            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, P.ismonitor, P.proptype '
+            'SELECT O.siteid, O.objid, O.propid, P.propname_en propname, O.propval, P.ismonitor, P.proptype '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE applid = $1 '
-            + '  AND objid = $2 '
+            + '  AND siteid = $2 '
+            + '  AND objid = $3 '
             + 'ORDER BY P.dispseq ';
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
 
             res.rows.forEach(function(row, idx, array) {
-                var selectParam2 = [prop.applid, row.objid];
+                var selectParam2 = [prop.applid, prop.siteid, row.objid];
                 pgpool.query(selectQuery2, selectParam2, (err, res2) => {
                     if (errlog(err)) return;
 
@@ -202,12 +203,12 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
 
         var insertQuery =
-            'INSERT INTO cockpit.object(  objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
+            'INSERT INTO cockpit.object(  applid, siteid, objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
             //+ ' CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, Description)'
-            + 'description, active, applid, ctrl1, ctrl2, siteid, imageid) '
+            + 'description, active, ctrl1, ctrl2, imageid) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, \'Y\', $15, $16, $17, $18, $19 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \'Y\', $17, $18, $19 )';
 
         var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1 AND siteid = $2';//다 지우고
         //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
@@ -215,37 +216,35 @@ io.on('connection', function (socket) {
             if (errlog(err)) return;
 
             data.rows.forEach(function(row) {
-                console.log(row["objid"])
                 var insertParam =
                     [
-                        row["objid"], row["classid"], row["objname"],
+                        row["applid"], row["siteid"], row["objid"], row["classid"], row["objname"],
                         row["positionx"], row["positiony"], row["positionz"],
                         row["rotationx"], row["rotationy"], row["rotationz"],
                         row["scalex"], row["scaley"], row["scalez"], row["speed"],
                         //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
-                        row["description"], row["applid"], row["ctrl1"], row["ctrl2"], row["siteid"], row["imageid"]
+                        row["description"], row["ctrl1"], row["ctrl2"], row["imageid"]
                     ];
                 
                 pgpool.query(insertQuery, insertParam, (err, res) => {
                     if (errlog(err)) return;
 
-                    console.log("insert success");
-                    objPropValInsert(row["applid"], row["objid"], row["classid"], row["prop"]);
+                    objPropValInsert(row["applid"], row["siteid"], row["objid"], row["classid"], row["prop"]);
                 });
             });    
         });
 
     });
 
-    function objPropValInsert(applid, objid, classid, prop) {
+    function objPropValInsert(applid, siteid, objid, classid, prop) {
         //console.log(applid + "," + objid)
-        var insertQuery = 'INSERT INTO cockpit.objpropval(applid, objid, classid, propid, propval) VALUES ($1, $2, $3, $4, $5);';
+        var insertQuery = 'INSERT INTO cockpit.objpropval(applid, siteid, objid, propid, propval) VALUES ($1, $2, $3, $4, $5);';
         var propids = [];
 
         if(!isnull(prop)) {
             prop.forEach(function(row) {
                 //console.log(util.inspect(row, {showHidden: false, depth: null}));  
-                var insertParam = [applid, objid, row["classid"], row["propid"], row["propval"]];
+                var insertParam = [applid, siteid, objid, row["propid"], row["propval"]];
                 propids.push(row["propid"]);
                 pgpool.query(insertQuery, insertParam, (err, res) => {
                     if (errlog(err)) return;
@@ -272,7 +271,7 @@ io.on('connection', function (socket) {
             if (errlog(err)) return;
             res.rows.forEach(function(row, idx, array) {
                 if(!propids.includes(row["propid"])) {
-                    var insertParam = [applid, objid, row["classid"], row["propid"], row["defpropval"]];
+                    var insertParam = [applid, siteid, objid, row["propid"], row["defpropval"]];
                     pgpool.query(insertQuery, insertParam, (err, res) => {
                         if (errlog(err)) return;
                     });
@@ -469,13 +468,13 @@ io.on('connection', function (socket) {
     });
     socket.on("SetObjPropVal", function (data) {     
         if(isnull(data)) return;
-        var param =  [data.applid, data.objid, data.classid, data.propid, data.propval];
+        var param =  [data.applid, data.siteid, data.objid, data.propid, data.propval];
 
         var updateQuery = 'UPDATE cockpit.objpropval '
             + 'SET propval = $5 '
             + 'WHERE applid = $1 '
-            + '  AND objid = $2 '
-            + '  AND classid = $3 '
+            + '  AND siteid = $2 '
+            + '  AND objid = $3 '
             + '  AND propid = $4 ';
 
         pgpool.query(updateQuery, param, (err, res) => {
@@ -613,7 +612,7 @@ io.on('connection', function (socket) {
     socket.on("GetAllStatus", function (data) {
         console.log("GetAllStatus");
         var selectQuery =
-            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, O.changed, O.updatedat '
+            'SELECT O.objid, O.siteid, O.propid, P.propname_en propname, O.propval, O.changed, O.updatedat '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE P.ismonitor = \'Y\' ';
@@ -629,7 +628,7 @@ io.on('connection', function (socket) {
         console.log("GetStatus: last_status_fetch_time=" + last_status_fetch_time);
      
         var selectQuery =
-            'SELECT O.objid, O.classid, O.propid, P.propname_en propname, O.propval, O.changed, O.updatedat '
+            'SELECT O.objid, O.siteid, O.propid, P.propname_en propname, O.propval, O.changed, O.updatedat '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE P.ismonitor = \'Y\' ';

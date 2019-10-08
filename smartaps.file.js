@@ -194,10 +194,6 @@ io.on('connection', function (socket) {
     }
 
     function makeOrder(ordertype, ordertime, objid, targetobjid1=null, targetobjid2=null, parameter=null) {
-
-        // if(objid == "BUCKET") objid = "WSBUCKET";
-        // if(targetobjid1 == "BUCKET") targetobjid1 = "WSBUCKET";
-        // if(targetobjid2 == "BUCKET") targetobjid2 = "WSBUCKET";
         return { 
             "version_no": version_no,
             "orderid": order_id++, 
@@ -212,7 +208,7 @@ io.on('connection', function (socket) {
     }
     function GetOrderFromEqpPlan(release, mergeWip, eqpPlan) {
         return new Promise(function(resolve, reject) {
-            var FIRST_EQP = 'WSDBANK';
+            var FIRST_EQP = 'DBANK';
             var LAST_EQP = 'DOCK';
             var orders = [];
             var plan = [];

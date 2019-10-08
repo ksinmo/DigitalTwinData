@@ -1,38 +1,21 @@
 var io = require('socket.io')(8072);
-var request = require('request')
-var sql = require('mssql');
-var config = {
-    user: 'sa',
-    password: 'tbw!2020',
-    server: 'portal.tobeway.com',
-    port: 1812,
-    database: 'WS정밀',
-    pool: {
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 30000
-    }
-}
+var request = require('request');
+const { readdirSync } = require('fs');
+var qs = require('querystring');
+var fileserverurl = 'http://localhost:60064/api/';
+var filepath = "C:\\Users\\김신모\\Downloads\\Data\\Experiment 1\\"
 console.log('0. created')
-const connectPool = new sql.ConnectionPool(config).connect();
 
 io.on('connection', function (socket) {
     var version_no, order_id=1;
     console.log('1. connected')
     socket.on("GetVersion", function () {
-        var q = ' SELECT distinct( version_no ) FROM dbo.EQP_PLAN ORDER BY 1 DESC ';
-        connectPool.then((pool) => {
-            return pool.request()
-            .query(q)
-        }).then( ({recordset}) => {
-            var res = { rowCount: recordset.length, rows: recordset}
-            socket.emit("ResultGetVersion", res);    
-            console.log(res)
-            sql.close();
-        }).catch(err => {
-            console.log(err);
-            sql.close();
-        });        
+        const getDirectories = source =>
+            readdirSync(source, { withFileTypes: true })
+            .filter(dirent => dirent.isDirectory())
+            .map(dirent => dirent.name)
+        let res = getDirectories(filepath);
+        socket.emit("ResultGetVersion", {rowCount: res.length, rows: res.map( row => ({"version_no": row}))}  );    
     });
     socket.on("GetProduct", function (data) {
         var eqp_id = data ?  data.eqp_id : '';
@@ -56,57 +39,57 @@ io.on('connection', function (socket) {
         
     });
     socket.on("UpdateEqpArrange", function (data) {
-        var q = 'DELETE FROM dbo.EQP_ARRANGE '
-            + 'WHERE eqp_id = @eqp_id';
-        var localPool;
-        var allPromise = [];
-        connectPool.then((pool) => {
-            localPool = pool;
-            return pool.request()
-            .input("eqp_id", sql.VarChar(30), data.eqp_id)
-            .query(q)
-        }).then( () => {
-            if(!data.rows) {
-                sql.close();
-                return;
-            }
-            var q = 'INSERT INTO dbo.EQP_ARRANGE '
-                + '(PRODUCT_ID, PROCESS_ID, STEP_ID, EQP_ID, TACT_TIME, PROC_TIME, EFF_START_DATE, EFF_END_DATE) '
-                + ' VALUES(@product_id, @process_id, @step_id, @eqp_id, 300, 300, \'\', \'\') ';
-            data.rows.forEach(function(row) {
-                allPromise.push(localPool.request()
-                    .input("product_id", sql.VarChar(30), row.product_id)
-                    .input("process_id", sql.VarChar(30), row.process_id)
-                    .input("step_id", sql.VarChar(30), row.step_id)
-                    .input("eqp_id", sql.VarChar(30), data.eqp_id)
-                    .query(q)
-                );
-            });   
-            Promise.all(allPromise).then(function(res) {
-                sql.close();
-            });
-        }).catch(err => {
-            console.log(err);
-            sql.close();
-        });
+        // var q = 'DELETE FROM dbo.EQP_ARRANGE '
+        //     + 'WHERE eqp_id = @eqp_id';
+        // var localPool;
+        // var allPromise = [];
+        // connectPool.then((pool) => {
+        //     localPool = pool;
+        //     return pool.request()
+        //     .input("eqp_id", sql.VarChar(30), data.eqp_id)
+        //     .query(q)
+        // }).then( () => {
+        //     if(!data.rows) {
+        //         sql.close();
+        //         return;
+        //     }
+        //     var q = 'INSERT INTO dbo.EQP_ARRANGE '
+        //         + '(PRODUCT_ID, PROCESS_ID, STEP_ID, EQP_ID, TACT_TIME, PROC_TIME, EFF_START_DATE, EFF_END_DATE) '
+        //         + ' VALUES(@product_id, @process_id, @step_id, @eqp_id, 300, 300, \'\', \'\') ';
+        //     data.rows.forEach(function(row) {
+        //         allPromise.push(localPool.request()
+        //             .input("product_id", sql.VarChar(30), row.product_id)
+        //             .input("process_id", sql.VarChar(30), row.process_id)
+        //             .input("step_id", sql.VarChar(30), row.step_id)
+        //             .input("eqp_id", sql.VarChar(30), data.eqp_id)
+        //             .query(q)
+        //         );
+        //     });   
+        //     Promise.all(allPromise).then(function(res) {
+        //         sql.close();
+        //     });
+        // }).catch(err => {
+        //     console.log(err);
+        //     sql.close();
+        // });
     });
     socket.on("UpdateEquipmentPreset", function (data) {
-        console.log("UpdateEquipmentPreset :" + data.eqp_id + "," + data.preset_id)
-        var q = 'UPDATE dbo.EQUIPMENT '
-            + 'SET PRESET_ID = @preset_id '
-            + 'WHERE EQP_ID = @eqp_id ';
-        connectPool.then((pool) => {
-            localPool = pool;
-            return pool.request()
-            .input("preset_id", sql.VarChar(30), data.preset_id)
-            .input("eqp_id", sql.VarChar(30), data.eqp_id)
-            .query(q)
-        }).then( () => {
-            sql.close();
-        }).catch(err => {
-            console.log(err);
-            sql.close();
-        });            
+        // console.log("UpdateEquipmentPreset :" + data.eqp_id + "," + data.preset_id)
+        // var q = 'UPDATE dbo.EQUIPMENT '
+        //     + 'SET PRESET_ID = @preset_id '
+        //     + 'WHERE EQP_ID = @eqp_id ';
+        // connectPool.then((pool) => {
+        //     localPool = pool;
+        //     return pool.request()
+        //     .input("preset_id", sql.VarChar(30), data.preset_id)
+        //     .input("eqp_id", sql.VarChar(30), data.eqp_id)
+        //     .query(q)
+        // }).then( () => {
+        //     sql.close();
+        // }).catch(err => {
+        //     console.log(err);
+        //     sql.close();
+        // });            
     });
     socket.on("GetOrder", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         if(data === null || data === undefined) return;
@@ -122,10 +105,6 @@ io.on('connection', function (socket) {
         }).then(function(eqpPlan) {
             return GetOrderFromEqpPlan(release, mergeWip, eqpPlan);
         }).then(function(orders) {
-            // orders.forEach(function(row, idx, array) {
-            //     console.log(row)
-            // });    
-            //시간순으로 정렬
             orders.sort(function(a,b) {
                 if( a.ordertime.valueOf() === b.ordertime.valueOf() )
                     return a.orderid < b.orderid ? -1: 1
@@ -141,8 +120,8 @@ io.on('connection', function (socket) {
                     done = true;
                 }
             }
-            //console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            //orders.forEach(function(row, idx, array) {
+            console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            orders.forEach(function(row, idx, array) {
             //     if(row.targetobjid1 === 'LOT_PROD01_01_3'
             //     || row.targetobjid1 === 'LOT_PROD01_02_2'
             //     || row.targetobjid1 === 'LOT_PROD01_05_1'
@@ -150,8 +129,8 @@ io.on('connection', function (socket) {
             //     || row.targetobjid1 === 'LOT_PROD01_04_3'
             //     || row.targetobjid1 === 'LOT_PROD01_06_1'
             //     || row.targetobjid1 === 'LOT_PROD01_1' )
-            //    console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
-            //});
+                console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
+            });
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
         }).catch(function (err) {
@@ -161,93 +140,64 @@ io.on('connection', function (socket) {
 
 
     //------------------------------Order Generation from VMS------------------------------------ 
-    function GetLastEqp() {
-        return new Promise(function(resolve, reject) {
-            var q = "SELECT product_id, process_id, step_id, eqp_id, tact_time, proc_time, eff_start_date, eff_end_date "
-                + "FROM dbo.EQP_ARRANGE "
-                + "WHERE STEP_ID in "
-                + "(SELECT TOP 1 STEP_ID "
-                + "FROM dbo.STEP_ROUTE R "
-                + "INNER JOIN dbo.PRODUCT P ON R.PROCESS_ID = P.PROCESS_ID "
-                + "WHERE P.PRODUCT_TYPE = 'FG' "
-                + "ORDER BY STEP_SEQ DESC) ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .query(q)
-            }).then( ({recordset}) => {
-                var lastEqp = [];
-                recordset.forEach(function(row, idx, array) {
-                    lastEqp.push(row.eqp_id)
-                });
-                resolve(lastEqp);
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
-            });
-        });
-    }
+   
     function GetReleaseHistory(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT batch_id, lot_id ,product_id, release_date, input_step_id, qty "
-                + "FROM [dbo].[RELEASE_HISTORY] "
-                + "WHERE version_no = @version_no ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .input("version_no", sql.VarChar(30), version_no)
-                .query(q)
-            }).then( ({recordset}) => {
-                resolve(recordset)
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
-            });
+            request(fileserverurl + "ReleaseHistory" + qs.escape("?filepath=" + filepath + version_no), function(error, response, body) {
+                if(error) {
+                    reject(error);
+                    return;
+                }
+                // JSON.parse(body).forEach(function(row) {
+                //    console.log(row.lot_id + "," + row.product_id + "," + row.release_date)
+                // });
+                resolve(JSON.parse(body));
+            });            
         });
     }
     function GetMergeWipLog(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT version_no, fr_lot_id, to_lot_id, fr_product_id, to_product_id, oper_id, fr_unit_qty, to_unit_qty " 
-                + "FROM dbo.MERGE_WIPLOG "
-                + "WHERE version_no = @version_no ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .input("version_no", sql.VarChar(30), version_no)
-                .query(q)
-            }).then( ({recordset}) => {
-                resolve(recordset)
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
+            request(fileserverurl + "MergeWiplog" + qs.escape("?filepath=" + filepath + version_no), function(error, response, body) {
+                if(error) {
+                    reject(error);
+                    return;
+                }
+                // JSON.parse(body).forEach(function(row) {
+                //    console.log(row.fr_lot_id + "," + row.to_lot_id + "," + row.oper_id)
+                // });
+                resolve(JSON.parse(body));
             });
         });
     }
     function GetEqpPlan(version_no) {
         return new Promise(function(resolve, reject) {
-            var q = "SELECT version_no, line_id, eqp_id, lot_id, product_id, process_id, step_id, process_qty, dispatch_in_time, start_time, end_time, machine_state "
-                + "FROM dbo.EQP_PLAN "
-                + "WHERE version_no = @version_no "
-                + "ORDER BY dispatch_in_time, start_time ";
-            connectPool.then((pool) => {
-                return pool.request()
-                .input("version_no", sql.VarChar(30), version_no)
-                .query(q)
-            }).then( ({recordset}) => {
-                resolve(recordset)
-                sql.close();
-            }).catch(err => {
-                sql.close();
-                reject(err); 
-                return;  
+            request(fileserverurl + "EqpPlan" + qs.escape("?filepath=" + filepath + version_no), function(error, response, body) {
+                if(error) {
+                    reject(error);
+                    return;
+                }
+                var eqpPlan = JSON.parse(body);
+                //시간순으로 정렬
+                eqpPlan.sort(function(a,b) {
+                    if( a.dispatch_in_time.valueOf() === b.dispatch_in_time.valueOf() )
+                        return a.start_time.valueOf() < b.start_time.valueOf() ? -1: 1
+                    else
+                        return a.dispatch_in_time.valueOf() < b.dispatch_in_time.valueOf() ? -1: 1
+                });
+                // eqpPlan.forEach(function(row) {
+                //     console.log(row.eqp_id + "," + row.lot_id + "," + row.product_id+ "," + row.dispatch_in_time + "," + row.start_time)
+                // });
+
+                resolve(eqpPlan);
             });
         });
     }
 
     function makeOrder(ordertype, ordertime, objid, targetobjid1=null, targetobjid2=null, parameter=null) {
+
+        // if(objid == "BUCKET") objid = "WSBUCKET";
+        // if(targetobjid1 == "BUCKET") targetobjid1 = "WSBUCKET";
+        // if(targetobjid2 == "BUCKET") targetobjid2 = "WSBUCKET";
         return { 
             "version_no": version_no,
             "orderid": order_id++, 
@@ -262,7 +212,7 @@ io.on('connection', function (socket) {
     }
     function GetOrderFromEqpPlan(release, mergeWip, eqpPlan) {
         return new Promise(function(resolve, reject) {
-            var FIRST_EQP = 'DBANK';
+            var FIRST_EQP = 'WSDBANK';
             var LAST_EQP = 'DOCK';
             var orders = [];
             var plan = [];

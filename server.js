@@ -223,7 +223,7 @@ io.on('connection', function (socket) {
                         row["rotationx"], row["rotationy"], row["rotationz"],
                         row["scalex"], row["scaley"], row["scalez"], row["speed"],
                         //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
-                        row["description"], row["applid"], row["ctrl1"], row["ctrl2"], row["siteid"]
+                        row["description"], row["applid"], row["ctrl1"], row["ctrl2"], row["siteid"], row["imageid"]
                     ];
                 
                 pgpool.query(insertQuery, insertParam, (err, res) => {
@@ -369,7 +369,7 @@ io.on('connection', function (socket) {
     socket.on("GetClassDetail", function (data) {     
         if(isnull(data)) return;
         var selectParam = [data.classid];
-        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf, classcode, imageid  '
+        var q = 'SELECT classid, classname_en, classname_ko, parentclassid, dispseq, classtype, active, createdat, description, z_iconpath, isleaf, classcode '
             + 'FROM cockpit.class '
             + 'WHERE classid = $1 '
         pgpool.query(q, selectParam, (err, res) => {

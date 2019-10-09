@@ -196,7 +196,6 @@ io.on('connection', function (socket) {
     //---------------------------------save Event-------------------------------
     //Object 테이블에 받은 정보를 insert 함
     socket.on("ObjectTableInsert", function (data) {
-
         console.log("ObjectTableInsert");
         //console.log(util.inspect(data, {showHidden: false, depth: null}));
 
@@ -205,10 +204,9 @@ io.on('connection', function (socket) {
         var insertQuery =
             'INSERT INTO cockpit.object(  applid, siteid, objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
-            //+ ' CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, Description)'
-            + 'description, active, ctrl1, ctrl2, imageid) '
+            + 'description, active, ctrl1, ctrl2, imageid, updatedat, updatedby) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \'Y\', $17, $18, $19 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \'Y\', $17, $18, $19, $20, $21 )';
 
         var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1 AND siteid = $2';//다 지우고
         //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
@@ -222,8 +220,8 @@ io.on('connection', function (socket) {
                         row["positionx"], row["positiony"], row["positionz"],
                         row["rotationx"], row["rotationy"], row["rotationz"],
                         row["scalex"], row["scaley"], row["scalez"], row["speed"],
-                        //row["createdat"], row["createdby"], row["updatedat"], row["updatedby"]
-                        row["description"], row["ctrl1"], row["ctrl2"], row["imageid"]
+                        row["description"], row["ctrl1"], row["ctrl2"], row["imageid"],
+                        getUTCFormat(new Date()), row["updatedby"]
                     ];
                 
                 pgpool.query(insertQuery, insertParam, (err, res) => {
@@ -280,7 +278,37 @@ io.on('connection', function (socket) {
         });
 
     }
+    //추가된 항목만 Add
+    socket.on("AddObjects", function (data) {
+        console.log("AddObjects");
 
+        if(isnull(data)) return;
+
+        var insertQuery =
+            'INSERT INTO cockpit.object(  applid, siteid, objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
+            + ' scaleX, scaleY, scaleZ, speed, '
+            + 'description, active, ctrl1, ctrl2, imageid, updatedat, updatedby) '
+            + 'VALUES '
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \'Y\', $17, $18, $19, $20, $21 )';
+
+        data.rows.forEach(function(row) {
+            var insertParam =
+                [
+                    row["applid"], row["siteid"], row["objid"], row["classid"], row["objname"],
+                    row["positionx"], row["positiony"], row["positionz"],
+                    row["rotationx"], row["rotationy"], row["rotationz"],
+                    row["scalex"], row["scaley"], row["scalez"], row["speed"],
+                    row["description"], row["ctrl1"], row["ctrl2"], row["imageid"],
+                    getUTCFormat(new Date()), row["updatedby"]
+                ];
+            
+            pgpool.query(insertQuery, insertParam, (err, res) => {
+                if(!errlog(err)) {
+                    objPropValInsert(row["applid"], row["siteid"], row["objid"], row["classid"], row["prop"]);
+                }
+            });
+        });    
+    });
     socket.on("GetOrder", function (prop) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         console.log("On GetOrder: prop=" + prop);
         var selectParam;
@@ -612,7 +640,7 @@ io.on('connection', function (socket) {
     socket.on("GetAllStatus", function (data) {
         console.log("GetAllStatus");
         var selectQuery =
-            'SELECT O.objid, O.siteid, O.propid, P.propname_en propname, O.propval, O.changed, O.updatedat '
+            'SELECT O.objid, O.siteid, O.propid, P.propname_en propname, O.propval, O.changed '
             + 'FROM cockpit.objpropval O '
             + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
             + 'WHERE P.ismonitor = \'Y\' ';
@@ -623,48 +651,6 @@ io.on('connection', function (socket) {
             socket.emit("ResultGetAllStatus", res); 
         });
     });
-    //이 함수는 사용하지 않음. 클라이언트가 요청하지 않고, SUB데이터를 수동으로 받음.
-    socket.on("GetStatus", function (data) {
-        console.log("GetStatus: last_status_fetch_time=" + last_status_fetch_time);
-     
-        var selectQuery =
-            'SELECT O.objid, O.siteid, O.propid, P.propname_en propname, O.propval, O.changed, O.updatedat '
-            + 'FROM cockpit.objpropval O '
-            + 'LEFT OUTER JOIN cockpit.prop P ON O.propid = P.propid '
-            + 'WHERE P.ismonitor = \'Y\' ';
-            
-        if(last_status_fetch_time != undefined && last_status_fetch_time != null) 
-            selectQuery += ' AND (O.changed = \'Y\' OR updatedat > \'' + getUTCFormat(last_status_fetch_time) + '\') ';
-        else
-            selectQuery += ' AND O.changed = \'Y\'';
-
-        selectQuery += 'ORDER BY P.dispseq ';
-
-        pgpool.query(selectQuery, (err, res) => {
-            if (errlog(err)) return;
-            //console.log("send ResultGetStatus : " + util.inspect(res, {showHidden: false, depth: null}));
-            socket.emit("ResultGetStatus", res); 
-        });
-
-        var updateQuery =
-            'UPDATE cockpit.objpropval O '
-            + 'SET changed = \'N\' ' 
-            + ',updatedat = \'' + getUTCFormat(new Date()) + '\' '
-            + 'FROM cockpit.prop P '
-            + 'WHERE O.propid = P.propid '
-            + '  AND P.ismonitor = \'Y\' ';
-        if(last_status_fetch_time != undefined && last_status_fetch_time != null) 
-            updateQuery += ' AND (O.changed = \'Y\' OR updatedat > \'' + getUTCFormat(last_status_fetch_time) + '\') ';
-        else
-            updateQuery += ' AND O.changed = \'Y\'';
-        last_status_fetch_time = new Date();
-
-        pgpool.query(updateQuery, (err, res) => {
-            if (errlog(err)) return;
-            console.log('update ok');
-        });
-    });
-
     /* End of 모니터링 */
     
     socket.on("GetResult", function (data) {
@@ -906,8 +892,12 @@ io.on('connection', function (socket) {
     }
     function errlog(err) {
         if(err) {
-            console.log( "errorlog");
-            console.log(err);
+            if(err.code === "23505") {
+                console.log(err.detail);
+            } else {
+                console.log( "errorlog");
+                console.log(err);
+            }
             return true;
         }
         else {

@@ -89,7 +89,7 @@ socketSaps.on('connect', function(){
     //socketSaps.emit('UpdateEqpArrange', data);
     //socketSaps.emit('GetProduct', {eqp_id: 'EQP01'});
     //socketSaps.emit('GetOrder', {version_no: 'TSK-20190916-120731'});
-    socketSaps.emit('GetOrder', {version_no: 'Result 0'});
+    socketSaps.emit('SendDigitalTwin', {version_no: 'Result 0'});
     //socketSaps.emit('UpdateEquipmentPreset', {eqp_id: 'EQP01', preset_id: 'PRESET03'});
 });
 socketSaps.on('event', function(data){});
@@ -97,7 +97,7 @@ socketSaps.on('disconnect', function(){});
 socketSaps.on("ResultGetOrder", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
-socketSaps.on("ResultGetProduct", function (data) {
+socketSaps.on("ResultSendDigitalTwin", function (data) {
     console.log(util.inspect(data, {showHidden: false, depth: null}));
 });
 

@@ -848,7 +848,7 @@ io.on('connection', function (socket) {
         });
     });
     socket.on("GetProduct", function (data) {     
-        console.log("On GetServer");
+        console.log("On GetProduct");
         if(isnull(data)) return;
         var selectParam = [data.applid];
 

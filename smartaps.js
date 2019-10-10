@@ -13,10 +13,6 @@ var config = {
         idleTimeoutMillis: 30000
     }
 }
-const DT_APPLID = 'SAPS'; 
-const DT_SITEID = 'TEST';
-const DT_EQUIPMENT_CLASSID = 'ES201010';
-const DT_STEP_CLASSID = 'LS1010';
 const DT_SERVER_URL = 'http://portal.tobeway.com:1814';
 
 console.log('0. created')
@@ -114,10 +110,11 @@ io.on('connection', function (socket) {
         });            
     });
     
+    //------------------------------ SAPS / Digital Twin Sync ------------------------------------ 
     function GetEquipment() {
         return new Promise(function(resolve, reject) {
-            let q = 'SELECT SITE_ID, LINE_ID, EQP_ID, EQP_MODEL, EQP_TYPE, EQP_GROUP, SIM_TYPE, PRESET_ID, DISPATCHER_TYPE, EQP_STATE, EQP_STATE_CODE, STATE_CHANGE_TIME, AUTOMATION '
-                + 'FROM dbo.EQUIPMENT ';
+            let q = 'SELECT site_id, line_id, eqp_id, eqp_model, eqp_type, eqp_group, sim_type, preset_id, dispatcher_type, eqp_state, eqp_state_code, state_change_time, automation '
+                + 'FROM dbo.equipment ';
             connectPool.then( pool => pool.request().query(q) )
             .then( ({recordset}) => resolve(recordset) )
             .catch( err => reject(err) )
@@ -126,8 +123,8 @@ io.on('connection', function (socket) {
     }
     function GetStdStepInfo() {
         return new Promise(function(resolve, reject) {
-            let q = 'SELECT STD_STEP_ID, STD_STEP_NAME, STEP_TAT, STEP_YIELD, STEP_SETUP, BUCKET_CAPACITY '
-                + 'FROM dbo.STD_STEP_INFO ';
+            let q = 'SELECT std_step_id, std_step_name, step_tat, step_yield, step_setup, bucket_capacity '
+                + 'FROM dbo.std_step_info ';
             connectPool.then( pool => pool.request().query(q) )
             .then( ({recordset}) => resolve(recordset) )
             .catch( err => reject(err) )
@@ -136,8 +133,8 @@ io.on('connection', function (socket) {
     }
     function GetEqpArrange() {
         return new Promise(function(resolve, reject) {
-            let q = 'SELECT distinct(STEP_ID), EQP_ID '
-                +   'FROM dbo.EQP_ARRANGE ';
+            let q = 'SELECT distinct(step_id), eqp_id '
+                +   'FROM dbo.eqp_arrange ';
             connectPool.then( pool => pool.request().query(q) )
             .then( ({recordset}) => resolve(recordset) )
             .catch( err => reject(err) )
@@ -145,39 +142,42 @@ io.on('connection', function (socket) {
         });
     }
 
-    socket.on("SendDigitalTwin", function () {             //Objectpropertis UI에 들어갈 key값과 value값 호출
+    socket.on("SendDigitalTwin", function (data) {             //Objectpropertis UI에 들어갈 key값과 value값 호출
         console.log("SendDigitalTwin")
+        if(isnull(data)) return;
         var socketDT = require('socket.io-client')(DT_SERVER_URL);
         GetEquipment().then(function(recordset) {
             let inputRows = [];
             for( let row of recordset ) {
                 inputRows.push({
-                    applid: DT_APPLID, 
-                    siteid: DT_SITEID,
-                    objid: row.EQP_ID,
-                    classid: DT_EQUIPMENT_CLASSID,
-                    objname: row.EQP_MODEL,
+                    applid: data.applid, 
+                    siteid: data.siteid,
+                    objid: row.eqp_id,
+                    classid: data.equipment_classid,
+                    objname: row.eqp_model,
                     imageid: 0,
-                    updatedby: 'SAPS',
+                    updatedby: data.applid,
                     positionx:0,positiony:0,positionz:0,rotationx:0,rotationy:0,rotationz:0,scalex:1,scaley:1,scalez:1
                 });
             }
+            console.log(inputRows)
             socketDT.emit("AddObjects", { rows: inputRows });   
             return GetStdStepInfo();
         }).then(function(recordset) {
             let inputRows = [];
             for( let row of recordset ) {
                 inputRows.push({
-                    applid: DT_APPLID, 
-                    siteid: DT_SITEID,
-                    objid: row.STD_STEP_ID,
-                    classid: DT_STEP_CLASSID,
-                    objname: row.STD_STEP_NAME,
+                    applid: data.applid, 
+                    siteid: data.siteid,
+                    objid: row.std_step_id,
+                    classid: data.area_classid,
+                    objname: row.std_step_name,
                     imageid: 0,
-                    updatedby: DT_APPLID,
+                    updatedby: data.applid,
                     positionx:0,positiony:0,positionz:0,rotationx:0,rotationy:0,rotationz:0,scalex:1,scaley:1,scalez:1
                 });
             }
+            console.log(inputRows)
             socketDT.emit("AddObjects", { rows: inputRows });   
             return GetEqpArrange();
         }).then(function(recordset) {
@@ -461,5 +461,11 @@ io.on('connection', function (socket) {
         });
         return result;
     }
-
+    function isnull(data) {
+        if(data == undefined || data == null) {
+            console.log('data is null.');
+            return true;
+        }
+        return false;
+    }
 })

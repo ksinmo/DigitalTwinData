@@ -113,8 +113,9 @@ io.on('connection', function (socket) {
     //------------------------------ SAPS / Digital Twin Sync ------------------------------------ 
     function GetEquipment() {
         return new Promise(function(resolve, reject) {
-            let q = 'SELECT site_id, line_id, eqp_id, eqp_model, eqp_type, eqp_group, sim_type, preset_id, dispatcher_type, eqp_state, eqp_state_code, state_change_time, automation '
-                + 'FROM dbo.equipment ';
+            let q = 'SELECT distinct(ea.eqp_id), site_id, line_id, eqp_model, eqp_type, eqp_group, sim_type, preset_id, dispatcher_type, eqp_state, eqp_state_code, state_change_time, automation '
+                + 'FROM dbo.eqp_arrange EA '
+                + 'LEFT OUTER JOIN dbo.equipment E on EA.eqp_id = E.eqp_id ';
             connectPool.then( pool => pool.request().query(q) )
             .then( ({recordset}) => resolve(recordset) )
             .catch( err => reject(err) )
@@ -135,6 +136,16 @@ io.on('connection', function (socket) {
         return new Promise(function(resolve, reject) {
             let q = 'SELECT distinct(step_id), eqp_id '
                 +   'FROM dbo.eqp_arrange ';
+            connectPool.then( pool => pool.request().query(q) )
+            .then( ({recordset}) => resolve(recordset) )
+            .catch( err => reject(err) )
+            .finally( () => sql.close() )
+        });
+    }
+    function GetProduct() {
+        return new Promise(function(resolve, reject) {
+            let q = 'SELECT product_id, product_name, product_type, process_id, lot_size, input_batch_size, cust_code '
+                + 'FROM dbo.product ';
             connectPool.then( pool => pool.request().query(q) )
             .then( ({recordset}) => resolve(recordset) )
             .catch( err => reject(err) )

@@ -450,6 +450,7 @@ io.on('connection', function (socket) {
 
         });
     });
+    //http://portal.tobeway.com:1816/appl/dt/ksm
     socket.on("GetAppl", function (data) {     
         console.log("On GetAppl");
         if(isnull(data)) return;

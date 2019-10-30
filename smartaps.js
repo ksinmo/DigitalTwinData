@@ -1,3 +1,6 @@
+// 더 이상 쓰이지 않음.
+// DTAdminData의 /saps/ 로 기능 이동함.
+// Update는 아직 기능이 반영되지 않음.
 var io = require('socket.io')(8072);
 var request = require('request')
 var sql = require('mssql');
@@ -419,8 +422,8 @@ io.on('connection', function (socket) {
                     done = true;
                 }
             }
-            //console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
-            //orders.forEach(function(row, idx, array) {
+            console.log('orderid, ordertype, ordertime, objid, targetobjid1, targetobjid2')
+            orders.forEach(function(row, idx, array) {
             //     if(row.targetobjid1 === 'LOT_PROD01_01_3'
             //     || row.targetobjid1 === 'LOT_PROD01_02_2'
             //     || row.targetobjid1 === 'LOT_PROD01_05_1'
@@ -428,8 +431,8 @@ io.on('connection', function (socket) {
             //     || row.targetobjid1 === 'LOT_PROD01_04_3'
             //     || row.targetobjid1 === 'LOT_PROD01_06_1'
             //     || row.targetobjid1 === 'LOT_PROD01_1' )
-            //    console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
-            //});
+                console.log(row.orderid + "," + row.ordertype + "," + row.ordertime + "," + row.objid + "," + row.targetobjid1 + "," + row.targetobjid2 + "," + row.parameter)
+            });
             var res = { rowCount: orders.length, rows: orders}
             socket.emit("ResultGetOrder", res);    //받은 오브젝트 정보를 던짐
         }).catch(function (err) {

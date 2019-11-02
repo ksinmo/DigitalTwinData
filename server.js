@@ -123,7 +123,8 @@ io.on('connection', function (socket) {
     });
 
     //------------------------------모델링------------------------------------    
-
+    //List http://portal.tobeway.com:1816/cockpit/object?applid=SAPS&siteid=WSPREC
+    //Object http://portal.tobeway.com:1816/cockpit/object?applid=SAPS&siteid=WSPREC&objid=EQP27
     socket.on("GetObject", function (prop) {
         console.log("GetObject");
         var selectParam;
@@ -182,9 +183,9 @@ io.on('connection', function (socket) {
         var selectParam;
         if(!isnull(prop)) selectParam = [prop.propid];
 
-        var selectQuery = ' SELECT propid, enumid, value_en, value_ko, active, isdefault, dispseq '
+        var selectQuery = ' SELECT propid, enumid, value_en, value_ko, isdefault, dispseq '
             + 'FROM cockpit.propvalue '
-            + 'WHERE active = \'Y\' AND propid = $1 '
+            + 'WHERE propid = $1 '
             + 'ORDER BY dispseq, enumid '
         
         pgpool.query(selectQuery, selectParam, (err, res) => {
@@ -202,11 +203,11 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
 
         var insertQuery =
-            'INSERT INTO cockpit.object(  applid, siteid, objid, classid, objname_en, positionx, positiony, positionz, rotationX, rotationY, rotationz, '
+            'INSERT INTO cockpit.object(  applid, siteid, objid, classid, objname_en, positionx, positiony, positionz, rotationw, rotationx, rotationy, rotationz, '
             + ' scaleX, scaleY, scaleZ, speed, '
             + 'description, active, ctrl1, ctrl2, imageid, updatedat, updatedby) '
             + 'VALUES '
-            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \'Y\', $17, $18, $19, $20, $21 )';
+            + '( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \'Y\', $17, $18, $19, $20, $21, $22 )';
 
         var objectDeleteQuery = 'DELETE FROM cockpit.object WHERE applid = $1 AND siteid = $2';//다 지우고
         //var objPropValdeleteQuery = 'DELETE FROM cockpit.objpropval ';//DB에서 처리. Cascade FK
@@ -218,7 +219,7 @@ io.on('connection', function (socket) {
                     [
                         row["applid"], row["siteid"], row["objid"], row["classid"], row["objname"],
                         row["positionx"], row["positiony"], row["positionz"],
-                        row["rotationx"], row["rotationy"], row["rotationz"],
+                        row["rotationw"], row["rotationx"], row["rotationy"], row["rotationz"],
                         row["scalex"], row["scaley"], row["scalez"], row["speed"],
                         row["description"], row["ctrl1"], row["ctrl2"], row["imageid"],
                         getUTCFormat(new Date()), row["updatedby"]
@@ -430,6 +431,7 @@ io.on('connection', function (socket) {
 
         });
     });
+    //http://portal.tobeway.com:1816/cockpit/org/ksm
     socket.on("GetOrg", function (data) {     
         console.log("On GetOrg");
         if(isnull(data)) return;
@@ -450,7 +452,7 @@ io.on('connection', function (socket) {
 
         });
     });
-    //http://portal.tobeway.com:1816/appl/dt/ksm
+    //http://portal.tobeway.com:1816/cockpit/appl/ksm
     socket.on("GetAppl", function (data) {     
         console.log("On GetAppl");
         if(isnull(data)) return;
@@ -473,6 +475,7 @@ io.on('connection', function (socket) {
 
         });
     });
+    //http://portal.tobeway.com:1816/cockpit/menu/ksm
     socket.on("GetMenu", function (data) {     
         console.log("On GetMenu");
         if(isnull(data)) return;

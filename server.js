@@ -695,7 +695,7 @@ io.on('connection', function (socket) {
         console.log("GetSnapshot");
         if(isnull(data)) return;
         var selectParam =  [data.resultid];
-        var selectQuery = "SELECT resultid, snapshotid, updatedat "
+        var selectQuery = "SELECT resultid, snapshotid, wip, updatedat "
             + "FROM cockpit.snapshot "
             + "WHERE resultid = $1";
 
@@ -705,19 +705,19 @@ io.on('connection', function (socket) {
         });
     });
 
-    socket.on("GetSnapshotwip", function (data) {
-        console.log("GetSnapshotwip");
-        if(isnull(data)) return;
-        var selectParam =  [data.resultid, data.snapshotid];
-        var selectQuery = "SELECT resultid, snapshotid, objid, part, targetobjid1 "
-            + "FROM cockpit.snapshotwip "
-            + "WHERE resultid = $1 AND snapshotid = $2 "
+    // socket.on("GetSnapshotwip", function (data) {
+    //     console.log("GetSnapshotwip");
+    //     if(isnull(data)) return;
+    //     var selectParam =  [data.resultid, data.snapshotid];
+    //     var selectQuery = "SELECT resultid, snapshotid, objid, part, targetobjid1 "
+    //         + "FROM cockpit.snapshotwip "
+    //         + "WHERE resultid = $1 AND snapshotid = $2 "
 
-        pgpool.query(selectQuery, selectParam, (err, res) => {
-            if (errlog(err)) return;
-            socket.emit("ResultGetSnapshotwip", res); 
-        });
-    });
+    //     pgpool.query(selectQuery, selectParam, (err, res) => {
+    //         if (errlog(err)) return;
+    //         socket.emit("ResultGetSnapshotwip", res); 
+    //     });
+    // });
     socket.on("InsertResult", function (data) {
         console.log("InsertResult")
         if(isnull(data)) return;
@@ -739,6 +739,7 @@ io.on('connection', function (socket) {
             + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) ';
 
         pgpool.query(insertQuery, insertParam, (err, res) => {
+            console.log("result INSERTED.");
             if (errlog(err)) 
                 console.log('InsertResult error: ' + data.usrid + ',' + data.scenarioid); 
         });
@@ -782,24 +783,25 @@ io.on('connection', function (socket) {
         if(!data.snapshotjson) return;
         data.snapshotjson.forEach(function(snapshot, idx) {
             var q = "INSERT INTO cockpit.snapshot "
-                + "(resultid, snapshotid, updatedat) "
-                + "VALUES($1, $2, $3) ";
-            var params =  [data.resultid, idx, getUTCFormat(new Date(snapshot.updatedat))];
+                + "(resultid, snapshotid, wip, updatedat) "
+                + "VALUES($1, $2, $3, $4) ";
+            var params =  [data.resultid, idx, JSON.stringify(snapshot.rows), getUTCFormat(new Date(snapshot.updatedat))];
             pgpool.query(q, params, (err, res) => {
                 if (errlog(err)) {
                     console.log('InsertResult snapshotjson error: ' + data.resultid); 
                     return;
                 }
-                snapshot.rows.forEach(function(row) {
-                    var q2 = "INSERT INTO cockpit.snapshotwip "
-                        + "(resultid, snapshotid, objid, part, targetobjid1) "
-                        + "VALUES($1, $2, $3, $4, $5) ";
-                    var params =  [data.resultid, idx, row.objid, row.part, row.targetobjid1];
-                    pgpool.query(q2, params, (err, res) => {
-                        if (errlog(err)) 
-                            console.log('InsertResult snapshotjson error: ' + data.resultid); 
-                    });            
-                });
+                // snapshot.rows.forEach(function(row) {
+                //     var q2 = "INSERT INTO cockpit.snapshotwip "
+                //         + "(resultid, snapshotid, objid, part, targetobjid1) "
+                //         + "VALUES($1, $2, $3, $4, $5) ";
+                //     var params =  [data.resultid, idx, row.objid, row.part, row.targetobjid1];
+                //     pgpool.query(q2, params, (err, res) => {
+                //         console.log("snapshotwip INSERTED.");
+                //         if (errlog(err)) 
+                //             console.log('InsertResult snapshotjson error: ' + data.resultid); 
+                //     });            
+                // });
             });
         });
         socket.emit("ResultInsertResult", {"resultid": data.resultid});

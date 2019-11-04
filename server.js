@@ -660,12 +660,13 @@ io.on('connection', function (socket) {
     socket.on("GetResult", function (data) {
         console.log("GetResult");
         if(isnull(data)) return;
-        var selectParam =  [data.usrid, data.applid];
+        var selectParam =  [data.applid, data.siteid, data.usrid];
         var selectQuery =
-            'SELECT resultid, usrid, applid, scenarioid, resultname, updateat '
+            'SELECT resultid, applid, siteid, scenarioid, usrid, resultname, updateat '
             + 'FROM cockpit.result '
-            + 'WHERE usrid = $1 '
-            + '  AND applid = $2 '
+            + 'WHERE applid = $1 '
+            + '  AND siteid = $2 '
+            + '  AND usrid = $3 '
             + 'ORDER BY updateat DESC ';
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
@@ -680,7 +681,7 @@ io.on('connection', function (socket) {
         if(isnull(data)) return;
         var selectParam =  [data.resultid];
         var selectQuery =
-            'SELECT resultid, wipjson, performancejson, alertjson, alertdetailjson '
+            'SELECT resultid, wipjson, performancejson, alertjson, alertdetailjson, utilizationjson '
             + 'FROM cockpit.result '
             + 'WHERE resultid = $1 ';
 
@@ -700,7 +701,8 @@ io.on('connection', function (socket) {
         var selectParam =  [data.resultid];
         var selectQuery = "SELECT resultid, snapshotid, wip, updatedat "
             + "FROM cockpit.snapshot "
-            + "WHERE resultid = $1";
+            + "WHERE resultid = $1 "
+	    + "ORDER BY snapshotid ";
 
         pgpool.query(selectQuery, selectParam, (err, res) => {
             if (errlog(err)) return;
@@ -734,12 +736,12 @@ io.on('connection', function (socket) {
         }
     });
     function insertResult(data) {
-        var insertParam =  [data.resultid, data.usrid, data.applid, data.scenarioid, data.resultname, getUTCFormat(new Date()), 
+        var insertParam =  [data.resultid, data.applid, data.siteid, data.scenarioid, data.usrid,  data.resultname, getUTCFormat(new Date()), 
             JSON.stringify(data.wipjson), JSON.stringify(data.performancejson), JSON.stringify(data.alertjson), JSON.stringify(data.alertdetailjson)];
         var insertQuery =
             'INSERT INTO cockpit.result( '
-            + 'resultid, usrid, applid, scenarioid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
-            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) ';
+            + 'resultid, applid, siteid, scenarioid, usrid, resultname, updateat, wipjson, performancejson, alertjson, alertdetailjson) '
+            + 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 ) ';
 
         pgpool.query(insertQuery, insertParam, (err, res) => {
             console.log("result INSERTED.");
